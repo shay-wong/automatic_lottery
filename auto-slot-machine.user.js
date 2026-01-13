@@ -1,11 +1,11 @@
 // ==UserScript==
 // @name         自动老虎机
-// @version      1.1.0
+// @version      1.2.0
 // @description  在页面右上角添加一个悬浮按钮，每 6 秒自动点击一次按钮来进行抽奖
 // @license      MIT; Fork from https://github.com/Lurito/kyx-auto-slot-machine
 // @homepage     https://github.com/shay-wong/automatic_lottery
-// @updateURL    https://cdn.jsdelivr.net/gh/shay-wong/automatic_lottery/auto-slot-machine.js
-// @downloadURL  https://cdn.jsdelivr.net/gh/shay-wong/automatic_lottery/auto-slot-machine.js
+// @updateURL    https://cdn.jsdelivr.net/gh/shay-wong/automatic_lottery/auto-slot-machine.user.js
+// @downloadURL  https://cdn.jsdelivr.net/gh/shay-wong/automatic_lottery/auto-slot-machine.user.js
 // @supportURL   https://github.com/shay-wong/automatic_lottery/issues
 // @match        https://quota.kyx03.de/
 // @match        https://quota.wpgzs.top/

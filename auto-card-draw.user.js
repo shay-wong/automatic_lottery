@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         自动抽卡
-// @version      1.0.0
+// @version      1.1.0
 // @description  自动抽卡脚本
 // @license      MIT; 参考 https://greasyfork.org/scripts/561215
 // @match        https://cdk.hybgzs.com/entertainment/cards/draw
 // @grant        none
-// @updateURL    https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/auto-card-draw.js
-// @downloadURL  https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/auto-card-draw.js
+// @updateURL    https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/auto-card-draw.user.js
+// @downloadURL  https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/auto-card-draw.user.js
 // ==/UserScript==
 
 (function () {

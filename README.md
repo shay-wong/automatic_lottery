@@ -45,8 +45,8 @@
 
 1. 安装 [Tampermonkey](https://www.tampermonkey.net/) 浏览器扩展
 2. 点击下方链接安装脚本：
-   - [auto-card-draw.js](https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/auto-card-draw.js)
-   - [auto-slot-machine.js](https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/auto-slot-machine.js)
+   - [auto-card-draw.user.js](https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/auto-card-draw.user.js)
+   - [auto-slot-machine.user.js](https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/auto-slot-machine.user.js)
 
 ## 许可证
 
