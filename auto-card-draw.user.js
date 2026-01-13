@@ -126,7 +126,8 @@
         font-size: 16px; line-height: 1;
       }
       #acd-panel.minimized .acd-body { display: none; }
-      #acd-panel.minimized { width: 180px; }
+      #acd-panel.minimized { width: auto; min-width: fit-content; }
+      #acd-panel.minimized .acd-header { white-space: nowrap; }
 
       #acd-settings {
         position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;

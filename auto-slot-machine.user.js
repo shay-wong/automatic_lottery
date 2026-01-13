@@ -104,7 +104,8 @@
         font-size: 16px; line-height: 1;
       }
       #asm-panel.minimized .asm-body { display: none; }
-      #asm-panel.minimized { width: 140px; }
+      #asm-panel.minimized { width: auto; min-width: fit-content; }
+      #asm-panel.minimized .asm-header { white-space: nowrap; }
 
       #asm-settings {
         position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
