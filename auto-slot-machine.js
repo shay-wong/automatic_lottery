@@ -71,6 +71,13 @@
         background: rgba(255,255,255,0.03); user-select: none;
       }
       .asm-title { font-weight: 600; font-size: 15px; color: rgba(255,255,255,0.95); }
+      .asm-header-status { display: none; font-size: 11px; color: rgba(235,235,245,0.5); margin-left: 8px; }
+      #asm-panel.minimized .asm-header-status { display: inline; }
+      .asm-header-right { display: flex; gap: 6px; }
+      .asm-header-stop { display: none; background: #ff453a; border: none; color: #fff; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; font-size: 12px; line-height: 1; }
+      .asm-header-start { display: none; background: #30d158; border: none; color: #fff; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; font-size: 12px; line-height: 1; }
+      #asm-panel.minimized.running .asm-header-stop { display: block; }
+      #asm-panel.minimized:not(.running) .asm-header-start { display: block; }
       .asm-body { padding: 16px; }
 
       .asm-config { background: rgba(0,0,0,0.2); border-radius: 10px; padding: 10px 14px; margin-bottom: 14px; }
@@ -169,10 +176,12 @@
   function updateBtnState() {
     document.getElementById('asm-start').style.display = isRunning ? 'none' : 'block';
     document.getElementById('asm-stop').style.display = isRunning ? 'block' : 'none';
+    document.getElementById('asm-panel').classList.toggle('running', isRunning);
   }
 
   function updateStatus(msg) {
     document.getElementById('asm-status').textContent = msg;
+    document.getElementById('asm-header-status').textContent = msg;
   }
 
   function updateConfigDisplay() {
@@ -229,8 +238,8 @@
     panel.id = 'asm-panel';
     panel.innerHTML = `
       <div class="asm-header">
-        <span class="asm-title">自动抽奖</span>
-        <button class="asm-min-btn">−</button>
+        <span class="asm-title">自动抽奖</span><span class="asm-header-status" id="asm-header-status"></span>
+        <div class="asm-header-right"><button class="asm-header-start" id="asm-header-start">▶</button><button class="asm-header-stop" id="asm-header-stop">⏹</button><button class="asm-min-btn">−</button></div>
       </div>
       <div class="asm-body">
         <div class="asm-config" id="asm-config"></div>
@@ -247,6 +256,8 @@
     document.getElementById('asm-start').onclick = start;
     document.getElementById('asm-stop').onclick = () => stop('用户停止');
     document.getElementById('asm-setting').onclick = showSettings;
+    document.getElementById('asm-header-stop').onclick = () => stop('用户停止');
+    document.getElementById('asm-header-start').onclick = start;
 
     const header = panel.querySelector('.asm-header');
     const minBtn = panel.querySelector('.asm-min-btn');

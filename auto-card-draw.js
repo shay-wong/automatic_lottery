@@ -92,6 +92,13 @@
         background: rgba(255,255,255,0.03); user-select: none;
       }
       .acd-title { font-weight: 600; font-size: 15px; color: rgba(255,255,255,0.95); }
+      .acd-header-status { display: none; font-size: 11px; color: rgba(235,235,245,0.5); margin-left: 8px; }
+      #acd-panel.minimized .acd-header-status { display: inline; }
+      .acd-header-right { display: flex; gap: 6px; }
+      .acd-header-stop { display: none; background: #ff453a; border: none; color: #fff; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; font-size: 12px; line-height: 1; }
+      .acd-header-start { display: none; background: #30d158; border: none; color: #fff; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; font-size: 12px; line-height: 1; }
+      #acd-panel.minimized.running .acd-header-stop { display: block; }
+      #acd-panel.minimized:not(.running) .acd-header-start { display: block; }
       .acd-body { padding: 16px; }
 
       .acd-config { background: rgba(0,0,0,0.2); border-radius: 10px; padding: 10px 14px; margin-bottom: 14px; }
@@ -214,10 +221,12 @@
   function updateBtnState() {
     document.getElementById('acd-start').style.display = isRunning ? 'none' : 'block';
     document.getElementById('acd-stop').style.display = isRunning ? 'block' : 'none';
+    document.getElementById('acd-panel').classList.toggle('running', isRunning);
   }
 
   function updateStatus(msg) {
     document.getElementById('acd-status').textContent = msg;
+    document.getElementById('acd-header-status').textContent = msg;
   }
 
   function updateConfigDisplay() {
@@ -298,8 +307,8 @@
     panel.id = 'acd-panel';
     panel.innerHTML = `
       <div class="acd-header">
-        <span class="acd-title">自动抽卡</span>
-        <button class="acd-min-btn">−</button>
+        <span class="acd-title">自动抽卡</span><span class="acd-header-status" id="acd-header-status"></span>
+        <div class="acd-header-right"><button class="acd-header-start" id="acd-header-start">▶</button><button class="acd-header-stop" id="acd-header-stop">⏹</button><button class="acd-min-btn">−</button></div>
       </div>
       <div class="acd-body">
         <div class="acd-config" id="acd-config"></div>
@@ -316,6 +325,8 @@
     document.getElementById('acd-start').onclick = start;
     document.getElementById('acd-stop').onclick = () => stop('用户停止');
     document.getElementById('acd-setting').onclick = showSettings;
+    document.getElementById('acd-header-stop').onclick = () => stop('用户停止');
+    document.getElementById('acd-header-start').onclick = start;
 
     const header = panel.querySelector('.acd-header');
     const minBtn = panel.querySelector('.acd-min-btn');
