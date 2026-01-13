@@ -91,9 +91,12 @@
         cursor: move; border-bottom: 1px solid rgba(255,255,255,0.08);
         background: rgba(255,255,255,0.03); user-select: none;
       }
+      .acd-header-left { display: flex; flex-direction: column; }
       .acd-title { font-weight: 600; font-size: 15px; color: rgba(255,255,255,0.95); }
-      .acd-header-status { display: none; font-size: 11px; color: rgba(235,235,245,0.5); margin-left: 8px; }
-      #acd-panel.minimized .acd-header-status { display: inline; }
+      .acd-header-status { display: none; font-size: 11px; color: rgba(235,235,245,0.5); margin-top: 4px; align-items: center; gap: 4px; }
+      .acd-header-status .acd-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.2); }
+      #acd-panel.minimized .acd-header-status { display: flex; }
+      #acd-panel.minimized.running .acd-header-status .acd-dot { background: #30d158; }
       .acd-header-right { display: flex; gap: 6px; }
       .acd-header-stop { display: none; background: #ff453a; border: none; color: #fff; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; font-size: 12px; line-height: 1; }
       .acd-header-start { display: none; background: #30d158; border: none; color: #fff; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; font-size: 12px; line-height: 1; }
@@ -227,7 +230,7 @@
 
   function updateStatus(msg) {
     document.getElementById('acd-status').textContent = msg;
-    document.getElementById('acd-header-status').textContent = msg;
+    document.getElementById('acd-header-status-text').textContent = msg;
   }
 
   function updateConfigDisplay() {
@@ -308,7 +311,10 @@
     panel.id = 'acd-panel';
     panel.innerHTML = `
       <div class="acd-header">
-        <span class="acd-title">自动抽卡</span><span class="acd-header-status" id="acd-header-status"></span>
+        <div class="acd-header-left">
+          <span class="acd-title">自动抽卡</span>
+          <div class="acd-header-status" id="acd-header-status"><span class="acd-dot"></span><span id="acd-header-status-text">准备就绪</span></div>
+        </div>
         <div class="acd-header-right"><button class="acd-header-start" id="acd-header-start">▶</button><button class="acd-header-stop" id="acd-header-stop">⏹</button><button class="acd-min-btn">−</button></div>
       </div>
       <div class="acd-body">

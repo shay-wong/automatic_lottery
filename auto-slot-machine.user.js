@@ -70,9 +70,12 @@
         cursor: move; border-bottom: 1px solid rgba(255,255,255,0.08);
         background: rgba(255,255,255,0.03); user-select: none;
       }
+      .asm-header-left { display: flex; flex-direction: column; }
       .asm-title { font-weight: 600; font-size: 15px; color: rgba(255,255,255,0.95); }
-      .asm-header-status { display: none; font-size: 11px; color: rgba(235,235,245,0.5); margin-left: 8px; }
-      #asm-panel.minimized .asm-header-status { display: inline; }
+      .asm-header-status { display: none; font-size: 11px; color: rgba(235,235,245,0.5); margin-top: 4px; align-items: center; gap: 4px; }
+      .asm-header-status .asm-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.2); }
+      #asm-panel.minimized .asm-header-status { display: flex; }
+      #asm-panel.minimized.running .asm-header-status .asm-dot { background: #30d158; }
       .asm-header-right { display: flex; gap: 6px; }
       .asm-header-stop { display: none; background: #ff453a; border: none; color: #fff; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; font-size: 12px; line-height: 1; }
       .asm-header-start { display: none; background: #30d158; border: none; color: #fff; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; font-size: 12px; line-height: 1; }
@@ -182,7 +185,7 @@
 
   function updateStatus(msg) {
     document.getElementById('asm-status').textContent = msg;
-    document.getElementById('asm-header-status').textContent = msg;
+    document.getElementById('asm-header-status-text').textContent = msg;
   }
 
   function updateConfigDisplay() {
@@ -239,7 +242,10 @@
     panel.id = 'asm-panel';
     panel.innerHTML = `
       <div class="asm-header">
-        <span class="asm-title">自动抽奖</span><span class="asm-header-status" id="asm-header-status"></span>
+        <div class="asm-header-left">
+          <span class="asm-title">自动抽奖</span>
+          <div class="asm-header-status" id="asm-header-status"><span class="asm-dot"></span><span id="asm-header-status-text">准备就绪</span></div>
+        </div>
         <div class="asm-header-right"><button class="asm-header-start" id="asm-header-start">▶</button><button class="asm-header-stop" id="asm-header-stop">⏹</button><button class="asm-min-btn">−</button></div>
       </div>
       <div class="asm-body">
