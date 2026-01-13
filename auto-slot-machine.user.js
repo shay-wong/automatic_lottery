@@ -1,11 +1,11 @@
 // ==UserScript==
 // @name         自动老虎机
-// @version      1.3.0
+// @version      1.3.1
 // @description  在页面右上角添加一个悬浮按钮，每 6 秒自动点击一次按钮来进行抽奖
 // @license      MIT; Fork from https://github.com/Lurito/kyx-auto-slot-machine
 // @homepage     https://github.com/shay-wong/automatic_lottery
-// @updateURL    https://cdn.jsdelivr.net/gh/shay-wong/automatic_lottery/auto-slot-machine.user.js
-// @downloadURL  https://cdn.jsdelivr.net/gh/shay-wong/automatic_lottery/auto-slot-machine.user.js
+// @updateURL    https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/auto-slot-machine.user.js
+// @downloadURL  https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/auto-slot-machine.user.js
 // @supportURL   https://github.com/shay-wong/automatic_lottery/issues
 // @match        https://quota.kyx03.de/
 // @match        https://quota.wpgzs.top/
@@ -72,7 +72,7 @@
       }
       .asm-header-left { display: flex; flex-direction: column; }
       .asm-title { font-weight: 600; font-size: 15px; color: rgba(255,255,255,0.95); }
-      .asm-header-status { display: none; font-size: 11px; color: rgba(235,235,245,0.5); margin-top: 4px; align-items: center; gap: 4px; }
+      .asm-header-status { display: none; font-size: 11px; color: rgba(235,235,245,0.5); margin-top: 6px; align-items: center; gap: 6px; }
       .asm-header-status .asm-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.2); }
       #asm-panel.minimized .asm-header-status { display: flex; }
       #asm-panel.minimized.running .asm-header-status .asm-dot { background: #30d158; }
