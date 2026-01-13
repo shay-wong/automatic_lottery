@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         自动抽卡
-// @version      1.2.1
+// @version      1.2.2
 // @description  自动抽卡脚本
 // @license      MIT; 参考 https://greasyfork.org/scripts/561215
 // @match        https://cdk.hybgzs.com/entertainment/cards/draw
@@ -97,7 +97,7 @@
       .acd-header-status .acd-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.2); }
       #acd-panel.minimized .acd-header-status { display: flex; }
       #acd-panel.minimized.running .acd-header-status .acd-dot { background: #30d158; }
-      .acd-header-right { display: flex; gap: 6px; }
+      .acd-header-right { display: flex; gap: 6px; margin-left: 16px; }
       .acd-header-stop { display: none; background: #ff453a; border: none; color: #fff; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; font-size: 12px; line-height: 1; }
       .acd-header-start { display: none; background: #30d158; border: none; color: #fff; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; font-size: 12px; line-height: 1; }
       #acd-panel.minimized.running .acd-header-stop { display: block; }

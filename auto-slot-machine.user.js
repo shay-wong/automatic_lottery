@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         自动老虎机
-// @version      1.3.1
+// @version      1.3.2
 // @description  在页面右上角添加一个悬浮按钮，每 6 秒自动点击一次按钮来进行抽奖
 // @license      MIT; Fork from https://github.com/Lurito/kyx-auto-slot-machine
 // @homepage     https://github.com/shay-wong/automatic_lottery
@@ -76,7 +76,7 @@
       .asm-header-status .asm-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.2); }
       #asm-panel.minimized .asm-header-status { display: flex; }
       #asm-panel.minimized.running .asm-header-status .asm-dot { background: #30d158; }
-      .asm-header-right { display: flex; gap: 6px; }
+      .asm-header-right { display: flex; gap: 6px; margin-left: 16px; }
       .asm-header-stop { display: none; background: #ff453a; border: none; color: #fff; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; font-size: 12px; line-height: 1; }
       .asm-header-start { display: none; background: #30d158; border: none; color: #fff; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; font-size: 12px; line-height: 1; }
       #asm-panel.minimized.running .asm-header-stop { display: block; }
