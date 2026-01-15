@@ -41,17 +41,26 @@ window.WH = window.WH || {};
         || document.querySelector('.draw-remaining')
         || document.querySelector('.remaining-count');
       if (el) {
-        const num = parseInt(el.textContent.trim());
+        const text = el.textContent.trim();
+        const num = parseInt(text);
+        console.log(`[自动抽卡] 剩余次数元素: "${text}" -> ${num}`);
         return isNaN(num) ? 0 : num;
       }
+      console.log('[自动抽卡] 未找到剩余次数元素');
       return 0;
     },
 
     draw() {
-      if (!this.isRunning) return;
+      if (!this.isRunning) {
+        console.log('[自动抽卡] draw() 跳过: isRunning=false');
+        return;
+      }
 
       const remaining = this.getRemaining();
+      console.log(`[自动抽卡] draw() remaining=${remaining}, autoStop=${this.config.autoStop}`);
+
       if (remaining <= 0 && this.config.autoStop) {
+        console.log('[自动抽卡] 次数用完，停止');
         this.stop();
         WH.showToast('抽卡次数已用完');
         WH.updateStatus('次数已用完');
@@ -61,6 +70,7 @@ window.WH = window.WH || {};
       // 检查余额是否低于阈值
       if (this.config.minBalance > 0) {
         const currentBalance = WH.getWalletBalance();
+        console.log(`[自动抽卡] 余额检查: ${currentBalance} vs ${this.config.minBalance}`);
         if (currentBalance < this.config.minBalance) {
           this.stop();
           WH.showToast(`余额不足，当前 ${currentBalance.toFixed(0)}，最低 ${this.config.minBalance}`);
@@ -73,6 +83,7 @@ window.WH = window.WH || {};
 
       const btnId = this.config.mode === 'ten' ? 'btn-ten' : 'btn-single';
       const btn = document.getElementById(btnId);
+      console.log(`[自动抽卡] 按钮 ${btnId}:`, btn, 'disabled=', btn?.disabled);
 
       if (btn && !btn.disabled) {
         if (this.config.mode === 'ten' && remaining < 10) {
@@ -96,10 +107,13 @@ window.WH = window.WH || {};
         this.stats.cards += count;
         WH.updateStatus(`已抽 ${this.stats.draws} 次`);
         WH.updateStatsDisplay();
+      } else {
+        console.log('[自动抽卡] 无法找到可用的抽卡按钮');
       }
     },
 
     start() {
+      console.log('[自动抽卡] 启动');
       this.isRunning = true;
       this.stats = { draws: 0, cards: 0 };
       // 先设置 intervalId，这样 draw() 中的 stop() 可以正确清理
@@ -109,6 +123,7 @@ window.WH = window.WH || {};
     },
 
     stop() {
+      console.log('[自动抽卡] 停止, isRunning=', this.isRunning, 'intervalId=', this.intervalId);
       if (!this.isRunning) return; // 防止重复停止
       this.isRunning = false;
       if (this.intervalId) {
