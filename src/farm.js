@@ -172,7 +172,7 @@ window.WH = window.WH || {};
         }
       }
 
-      // 多种作物或需要逐块收割：按作物类型分组收割
+      // 多种作物：按作物类型分组，每组一起收割
       let totalCount = 0;
       for (const cropName of cropNames) {
         const tiles = Array.from(document.querySelectorAll('.tile.ready')).filter(tile => {
@@ -186,18 +186,24 @@ window.WH = window.WH || {};
 
         if (tiles.length === 0) continue;
 
+        // 记录收割前余额
         const balanceBefore = WH.getWalletBalance();
 
-        // 逐块收割这种作物
+        // 快速连续点击收割这种作物的所有地块（不等待）
         for (const tile of tiles) {
           tile.click();
           totalCount++;
-          await new Promise(r => setTimeout(r, 150));
         }
 
-        await new Promise(r => setTimeout(r, 500));
+        // 等待所有收割完成，余额更新
+        await new Promise(r => setTimeout(r, 800));
+
+        // 记录这种作物的收益（总收益 / 数量 = 单块收益）
         this.recordSingleCropProfit(balanceBefore, cropName, tiles.length);
         console.log(`[自动农场] 收割 ${tiles.length} 块 ${cropName}`);
+
+        // 短暂等待再处理下一种作物
+        await new Promise(r => setTimeout(r, 200));
       }
 
       this.stats.harvested += totalCount;
