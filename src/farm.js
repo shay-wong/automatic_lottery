@@ -336,15 +336,19 @@ window.WH = window.WH || {};
 
     start() {
       this.isRunning = true;
-      this.loop();
+      // 先设置 intervalId，这样 loop() 中的 stop() 可以正确清理
       this.intervalId = setInterval(() => this.loop(), this.config.interval);
+      this.loop();
     },
 
     stop() {
+      if (!this.isRunning) return; // 防止重复停止
       this.isRunning = false;
-      clearInterval(this.intervalId);
-      clearTimeout(this.intervalId);
-      this.intervalId = null;
+      if (this.intervalId) {
+        clearInterval(this.intervalId);
+        clearTimeout(this.intervalId);
+        this.intervalId = null;
+      }
     },
 
     getConfigDisplay() {

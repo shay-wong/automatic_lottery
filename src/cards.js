@@ -35,7 +35,11 @@ window.WH = window.WH || {};
     },
 
     getRemaining() {
-      const el = document.getElementById('draw-remaining');
+      // 尝试多种方式获取剩余次数
+      const el = document.getElementById('draw-remaining')
+        || document.querySelector('[id*="remaining"]')
+        || document.querySelector('.draw-remaining')
+        || document.querySelector('.remaining-count');
       if (el) {
         const num = parseInt(el.textContent.trim());
         return isNaN(num) ? 0 : num;
@@ -98,14 +102,19 @@ window.WH = window.WH || {};
     start() {
       this.isRunning = true;
       this.stats = { draws: 0, cards: 0 };
-      this.draw();
+      // 先设置 intervalId，这样 draw() 中的 stop() 可以正确清理
       this.intervalId = setInterval(() => this.draw(), this.config.interval);
+      // 然后执行第一次抽卡
+      this.draw();
     },
 
     stop() {
+      if (!this.isRunning) return; // 防止重复停止
       this.isRunning = false;
-      clearInterval(this.intervalId);
-      this.intervalId = null;
+      if (this.intervalId) {
+        clearInterval(this.intervalId);
+        this.intervalId = null;
+      }
     },
 
     getConfigDisplay() {

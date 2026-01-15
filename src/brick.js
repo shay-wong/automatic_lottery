@@ -254,6 +254,7 @@ window.WH = window.WH || {};
     },
 
     stop() {
+      if (!this.isRunning) return; // 防止重复停止
       this.isRunning = false;
       if (this.animationId) {
         cancelAnimationFrame(this.animationId);
