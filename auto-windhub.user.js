@@ -18,8 +18,10 @@
 (function () {
   'use strict';
 
-  // 版本号（与 @version 保持一致）
-  WH.version = '1.8.0';
+  // 自动从 @version 读取版本号
+  WH.version = (typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version)
+    ? GM_info.script.version
+    : '1.8.0';
 
   function init() {
     const path = window.location.pathname;
