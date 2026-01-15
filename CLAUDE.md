@@ -83,17 +83,27 @@ UI 创建和事件绑定
 
 ### 发布流程
 
-本项目使用 GitHub Actions 自动管理版本号和发布：
+本项目使用 GitHub Actions 自动管理版本号和发布，**每个脚本独立版本**：
 
 1. **开发阶段**：正常提交代码，**不需要手动修改** `@version` 字段
-2. **发布新版本**：创建 Git tag 触发自动发布
+
+2. **发布新版本**：根据脚本创建对应格式的 Git tag
+
+   | 脚本 | Tag 格式 | 示例 |
+   |------|----------|------|
+   | WindHub 自动化助手 | `windhub-v{版本}` | `windhub-v1.9.0` |
+   | 自动抽卡 | `card-draw-v{版本}` | `card-draw-v1.2.0` |
+   | 自动老虎机 | `slot-machine-v{版本}` | `slot-machine-v1.1.0` |
+
    ```bash
-   git tag v1.1.0
-   git push origin v1.1.0
+   # 示例：发布 WindHub v1.9.0
+   git tag windhub-v1.9.0
+   git push origin windhub-v1.9.0
    ```
+
 3. **自动化处理**：GitHub Actions 会自动：
-   - 更新所有脚本的 `@version` 字段
-   - 生成 changelog
+   - 更新**对应脚本**的 `@version` 字段
+   - 生成该脚本的 changelog
    - 创建 GitHub Release
    - 提交版本更新到 main 分支
 
