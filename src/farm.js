@@ -504,35 +504,55 @@ window.WH = window.WH || {};
         if (data && data.count > 0) hasData++;
       });
 
-      // 找出最优作物
+      // 计算每种作物的收益和ROI
+      const cropStats = [];
       let bestCrop = null;
       let bestROI = -Infinity;
-      Object.keys(this.profitData).forEach(cropKey => {
-        const data = this.profitData[cropKey];
-        if (data.count > 0) {
-          const seed = seeds.find(s => s.id === cropKey);
-          if (seed) {
-            const avgProfit = data.totalProfit / data.count;
-            const roi = seed.cost > 0 ? (avgProfit - seed.cost) / seed.cost : 0;
-            if (roi > bestROI) {
-              bestROI = roi;
-              bestCrop = seed.name;
-            }
+
+      seeds.forEach(seed => {
+        const data = this.profitData[seed.id];
+        if (data && data.count > 0) {
+          const avgProfit = data.totalProfit / data.count;
+          const roi = seed.cost > 0 ? (avgProfit - seed.cost) / seed.cost : 0;
+          cropStats.push({
+            name: seed.name,
+            avgProfit: avgProfit,
+            roi: roi,
+            count: data.count
+          });
+          if (roi > bestROI) {
+            bestROI = roi;
+            bestCrop = seed.name;
           }
         }
       });
 
+      // 按ROI排序
+      cropStats.sort((a, b) => b.roi - a.roi);
+
       const dataProgress = `${hasData}/${totalSeeds}`;
-      const bestInfo = bestCrop ? `${bestCrop} (${(bestROI * 100).toFixed(0)}%)` : '收集中';
       const stamina = this.getStamina();
       const staminaText = stamina ? `${stamina.current}/${stamina.max}` : '-';
+
+      // 生成作物收益列表
+      let cropListHtml = '';
+      if (cropStats.length > 0) {
+        cropListHtml = `<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.1);">`;
+        cropStats.forEach((crop, index) => {
+          const isBest = index === 0 && cropStats.length > 1;
+          const style = isBest ? 'color:#30d158;' : '';
+          cropListHtml += `<div class="${PREFIX}-row"><span class="${PREFIX}-label" style="${style}">${crop.name}</span><span class="${PREFIX}-val" style="font-size:11px;${style}">${crop.avgProfit.toFixed(1)} (${(crop.roi * 100).toFixed(0)}%)</span></div>`;
+        });
+        cropListHtml += `</div>`;
+      }
+
       return `
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">体力</span><span class="${PREFIX}-val">${staminaText}</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">数据收集</span><span class="${PREFIX}-val">${dataProgress}</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">已收割</span><span class="${PREFIX}-val">${this.stats.harvested}</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">已种植</span><span class="${PREFIX}-val">${this.stats.planted}</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">总收益</span><span class="${PREFIX}-val">${this.stats.totalProfit.toFixed(1)}</span></div>
-        <div class="${PREFIX}-row"><span class="${PREFIX}-label">最优作物</span><span class="${PREFIX}-val" style="font-size:11px">${bestInfo}</span></div>
+        ${cropListHtml}
       `;
     },
 
