@@ -347,47 +347,69 @@ window.WH = window.WH || {};
             console.error(`[自动农场] 种植 ${seed.name} 失败:`, e);
           }
         } else {
-          // 手动拖拽种植模式
-          console.log(`[自动农场] 使用拖拽种植 ${seed.name}`);
+          // 手动拖拽种植模式 - 使用 HTML5 拖拽事件
+          console.log(`[自动农场] 使用 HTML5 拖拽种植 ${seed.name}`);
 
           if (seed.element) {
-            // 模拟从种子拖拽到空地的过程
             const seedRect = seed.element.getBoundingClientRect();
             const tileRect = tile.getBoundingClientRect();
 
-            // 1. 在种子上 mousedown
-            const mousedownEvent = new MouseEvent('mousedown', {
+            // 1. dragstart 在种子上
+            const dragstartEvent = new DragEvent('dragstart', {
               bubbles: true,
               cancelable: true,
               clientX: seedRect.left + seedRect.width / 2,
               clientY: seedRect.top + seedRect.height / 2,
-              button: 0
+              dataTransfer: new DataTransfer()
             });
-            seed.element.dispatchEvent(mousedownEvent);
-            console.log(`[自动农场] mousedown on ${seed.name}`);
+            seed.element.dispatchEvent(dragstartEvent);
+            console.log(`[自动农场] dragstart on ${seed.name}`);
             await new Promise(r => setTimeout(r, 100));
 
-            // 2. mousemove 到空地
-            const mousemoveEvent = new MouseEvent('mousemove', {
+            // 2. dragenter 在空地上
+            const dragenterEvent = new DragEvent('dragenter', {
               bubbles: true,
               cancelable: true,
               clientX: tileRect.left + tileRect.width / 2,
               clientY: tileRect.top + tileRect.height / 2,
-              button: 0
+              dataTransfer: dragstartEvent.dataTransfer
             });
-            document.dispatchEvent(mousemoveEvent);
+            tile.dispatchEvent(dragenterEvent);
             await new Promise(r => setTimeout(r, 50));
 
-            // 3. 在空地上 mouseup
-            const mouseupEvent = new MouseEvent('mouseup', {
+            // 3. dragover 在空地上
+            const dragoverEvent = new DragEvent('dragover', {
               bubbles: true,
               cancelable: true,
               clientX: tileRect.left + tileRect.width / 2,
               clientY: tileRect.top + tileRect.height / 2,
-              button: 0
+              dataTransfer: dragstartEvent.dataTransfer
             });
-            tile.dispatchEvent(mouseupEvent);
-            console.log(`[自动农场] mouseup on tile ${plotIndex}`);
+            tile.dispatchEvent(dragoverEvent);
+            await new Promise(r => setTimeout(r, 50));
+
+            // 4. drop 在空地上
+            const dropEvent = new DragEvent('drop', {
+              bubbles: true,
+              cancelable: true,
+              clientX: tileRect.left + tileRect.width / 2,
+              clientY: tileRect.top + tileRect.height / 2,
+              dataTransfer: dragstartEvent.dataTransfer
+            });
+            tile.dispatchEvent(dropEvent);
+            console.log(`[自动农场] drop on tile ${plotIndex}`);
+            await new Promise(r => setTimeout(r, 50));
+
+            // 5. dragend 在种子上
+            const dragendEvent = new DragEvent('dragend', {
+              bubbles: true,
+              cancelable: true,
+              clientX: tileRect.left + tileRect.width / 2,
+              clientY: tileRect.top + tileRect.height / 2,
+              dataTransfer: dragstartEvent.dataTransfer
+            });
+            seed.element.dispatchEvent(dragendEvent);
+            console.log(`[自动农场] dragend on ${seed.name}`);
 
             totalPlanted++;
             await new Promise(r => setTimeout(r, 300));
