@@ -46,6 +46,22 @@ window.WH = window.WH || {};
       localStorage.setItem('wh_farm_profit', JSON.stringify(this.profitData));
     },
 
+    getStamina() {
+      // 获取体力，格式如 "0/150"
+      const el = document.getElementById('p-actions');
+      if (el) {
+        const text = el.textContent.trim();
+        const match = text.match(/^(\d+)\s*\/\s*(\d+)$/);
+        if (match) {
+          return {
+            current: parseInt(match[1]),
+            max: parseInt(match[2])
+          };
+        }
+      }
+      return null;
+    },
+
     parseSeedCost(seed) {
       if (!seed.element) return 0;
       const costEl = seed.element.querySelector('.seed-cost');
@@ -405,6 +421,16 @@ window.WH = window.WH || {};
 
     async loop() {
       if (!this.isRunning) return;
+
+      // 检查体力是否用完
+      const stamina = this.getStamina();
+      if (stamina && stamina.current <= 0) {
+        WH.showToast('体力已用完，自动停止');
+        WH.updateStatus('体力已用完');
+        this.stop();
+        return;
+      }
+
       const status = this.getFarmStatus();
       WH.updateStatus(`检查中... (空:${status.empty} 长:${status.growing} 熟:${status.ready})`);
 
@@ -498,7 +524,10 @@ window.WH = window.WH || {};
 
       const dataProgress = `${hasData}/${totalSeeds}`;
       const bestInfo = bestCrop ? `${bestCrop} (${(bestROI * 100).toFixed(0)}%)` : '收集中';
+      const stamina = this.getStamina();
+      const staminaText = stamina ? `${stamina.current}/${stamina.max}` : '-';
       return `
+        <div class="${PREFIX}-row"><span class="${PREFIX}-label">体力</span><span class="${PREFIX}-val">${staminaText}</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">数据收集</span><span class="${PREFIX}-val">${dataProgress}</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">已收割</span><span class="${PREFIX}-val">${this.stats.harvested}</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">已种植</span><span class="${PREFIX}-val">${this.stats.planted}</span></div>
