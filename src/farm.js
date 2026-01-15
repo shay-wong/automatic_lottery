@@ -25,22 +25,8 @@ window.WH = window.WH || {};
     stats: { harvested: 0, planted: 0, totalProfit: 0 },
     profitData: {},
     pendingHarvest: null,
-    // 固定收益数据（每块地的收益）
-    fixedProfits: {
-      wheat: 37,      // 小麦
-      carrot: 64,     // 胡萝卜
-      potato: 91,     // 土豆
-      strawberry: 142, // 草莓
-      tomato: 70,     // 番茄
-      cabbage: 86,    // 卷心菜
-      corn: 98,       // 玉米
-      onion: 102,     // 洋葱
-      pepper: 147,    // 辣椒
-      pumpkin: 222,   // 南瓜
-      blueberry: 201, // 蓝莓
-      rice: 178,      // 水稻
-      cotton: 190,    // 棉花
-    },
+    // API 返回的作物数据缓存
+    cropsData: null,
 
     init() {
       this.config = { ...this.defaultConfig };
@@ -49,24 +35,93 @@ window.WH = window.WH || {};
         if (saved) this.config = { ...this.defaultConfig, ...JSON.parse(saved) };
       } catch (e) {}
 
-      // 初始化固定收益数据
+      // 初始化收益数据
       try {
         const profitSaved = localStorage.getItem('wh_farm_profit');
         if (profitSaved) {
           this.profitData = JSON.parse(profitSaved);
-        } else {
-          // 使用固定收益数据初始化
-          this.profitData = {};
-          Object.keys(this.fixedProfits).forEach(cropId => {
-            this.profitData[cropId] = {
-              totalProfit: this.fixedProfits[cropId],
-              totalCost: 0,
-              count: 1
-            };
-          });
-          this.saveProfitData();
         }
       } catch (e) {}
+
+      // 尝试从页面获取作物数据
+      this.refreshCropsData();
+    },
+
+    // 从 API 获取作物数据
+    async refreshCropsData() {
+      // 尝试从 window.state 获取
+      if (window.state && window.state.crops) {
+        this.cropsData = {};
+        window.state.crops.forEach(crop => {
+          this.cropsData[crop.key] = {
+            reward: crop.reward,
+            seedCost: crop.seed_cost,
+            growSeconds: crop.grow_seconds,
+            exp: crop.exp
+          };
+        });
+        console.log('[自动农场] 从 window.state 获取作物数据:', this.cropsData);
+        return;
+      }
+
+      // 尝试从 API 获取
+      try {
+        const resp = await fetch('/farm_state.php');
+        const data = await resp.json();
+        if (data.crops && Array.isArray(data.crops)) {
+          this.cropsData = {};
+          data.crops.forEach(crop => {
+            this.cropsData[crop.key] = {
+              reward: crop.reward,
+              seedCost: crop.seed_cost,
+              growSeconds: crop.grow_seconds,
+              exp: crop.exp
+            };
+          });
+          console.log('[自动农场] 从 API 获取作物数据:', this.cropsData);
+          return;
+        }
+      } catch (e) {
+        console.warn('[自动农场] API 获取作物数据失败:', e);
+      }
+
+      // 兜底：使用静态数据
+      this.cropsData = {
+        wheat: { reward: 35, seedCost: 33 },
+        carrot: { reward: 60, seedCost: 57 },
+        potato: { reward: 85, seedCost: 78 },
+        strawberry: { reward: 120, seedCost: 112 },
+        tomato: { reward: 65, seedCost: 50 },
+        cabbage: { reward: 80, seedCost: 70 },
+        corn: { reward: 91, seedCost: 60 },
+        onion: { reward: 95, seedCost: 80 },
+        pepper: { reward: 119, seedCost: 100 },
+        pumpkin: { reward: 180, seedCost: 140 },
+        blueberry: { reward: 170, seedCost: 140 },
+        rice: { reward: 150, seedCost: 120 },
+        cotton: { reward: 160, seedCost: 140 }
+      };
+      console.log('[自动农场] 使用静态作物数据');
+    },
+
+    // 获取作物的基础收益（不含加成）
+    getCropBaseProfit(cropId) {
+      if (this.cropsData && this.cropsData[cropId]) {
+        const data = this.cropsData[cropId];
+        return data.reward - data.seedCost;
+      }
+      return 0;
+    },
+
+    // 获取作物的 ROI
+    getCropROI(cropId) {
+      if (this.cropsData && this.cropsData[cropId]) {
+        const data = this.cropsData[cropId];
+        if (data.seedCost > 0) {
+          return (data.reward - data.seedCost) / data.seedCost;
+        }
+      }
+      return 0;
     },
 
     saveConfig() {
@@ -242,13 +297,16 @@ window.WH = window.WH || {};
         // 等待收割完成
         await new Promise(r => setTimeout(r, 800));
 
-        // 使用固定收益数据记录
+        // 使用 API 数据计算收益
         const seeds = this.getAvailableSeeds();
         const seed = seeds.find(s => s.name === cropName);
-        if (seed && this.fixedProfits[seed.id]) {
-          const profit = this.fixedProfits[seed.id] * tiles.length;
-          this.stats.totalProfit += profit;
-          console.log(`[自动农场] 收割 ${tiles.length} 块 ${cropName}，收益 ${profit}`);
+        if (seed) {
+          const baseProfit = this.getCropBaseProfit(seed.id);
+          if (baseProfit > 0) {
+            const profit = baseProfit * tiles.length;
+            this.stats.totalProfit += profit;
+            console.log(`[自动农场] 收割 ${tiles.length} 块 ${cropName}，收益 ${profit}`);
+          }
         }
 
         // 短暂等待再处理下一种作物
