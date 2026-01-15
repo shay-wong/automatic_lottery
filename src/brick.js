@@ -135,12 +135,19 @@ window.WH = window.WH || {};
       const startBtn = this.findStartButton();
       const pauseVisible = this.isElementVisible(pauseBtn);
       const startVisible = this.isElementVisible(startBtn);
+      const startDisabled = startBtn ? startBtn.disabled : false;
+
+      // 游戏进行中的条件：
+      // 1. 暂停按钮可见 且 开始按钮不可见
+      // 2. 或者 暂停按钮可见 且 开始按钮被禁用
+      const isPlaying = pauseVisible && (!startVisible || startDisabled);
+
       // 每 60 帧输出一次日志
       if (this.logCounter % 60 === 0) {
-        console.log('[自动打砖块] 游戏状态: pause=', pauseVisible, 'start=', startVisible);
+        console.log('[自动打砖块] 游戏状态: pause=', pauseVisible, 'start=', startVisible, 'startDisabled=', startDisabled, 'isPlaying=', isPlaying);
       }
       this.logCounter++;
-      return pauseVisible && !startVisible;
+      return isPlaying;
     },
 
     canStartGame() {
@@ -148,7 +155,7 @@ window.WH = window.WH || {};
       const startBtn = this.findStartButton();
       const canStart = startBtn && !startBtn.disabled && this.isElementVisible(startBtn);
       if (this.logCounter % 60 === 0) {
-        console.log('[自动打砖块] 可以开始:', canStart);
+        console.log('[自动打砖块] 可以开始:', canStart, 'disabled=', startBtn?.disabled);
       }
       return canStart;
     },
@@ -229,6 +236,11 @@ window.WH = window.WH || {};
 
       this.updateScanPosition();
       this.movePaddle(this.scanPosition);
+
+      // 每 60 帧输出一次扫描日志
+      if (this.logCounter % 60 === 0) {
+        console.log('[自动打砖块] 扫描中 X:', Math.round(this.scanPosition));
+      }
 
       const normalEl = document.getElementById('stat-normal');
       const chestEl = document.getElementById('stat-chest');
