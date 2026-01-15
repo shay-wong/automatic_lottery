@@ -2,7 +2,37 @@
 
 自动抽奖/抽卡浏览器脚本。
 
+## 脚本列表
+
+| 脚本 | 功能 | 适用网站 |
+|-----|------|---------|
+| [auto-windhub.user.js](#auto-windhubjs) | WindHub 自动化助手 | [WindHub 福利站](https://wcdk.224442.xyz/) |
+| [auto-slot-machine.user.js](#auto-slot-machinejs) | 老虎机抽奖 | KYX、莹のapi 加油站 |
+| [auto-card-draw.user.js](#auto-card-drawjs) | 抽卡 | 黑与白抽卡网站 |
+
 ## 功能
+
+### auto-windhub.js
+
+WindHub 福利站自动化助手，根据页面自动加载对应功能模块：
+
+#### 农场模块（farm.php）
+- 自动收割成熟作物
+- 自动在空地播种
+- 可选择种子类型
+- 可配置检查间隔
+
+#### 抽卡模块（cards.php）
+- 自动单抽/十连抽
+- 可配置抽卡间隔
+- 次数用完自动停止
+- 显示抽卡统计
+
+#### 打砖块模块（game.php）
+- 自动追踪球位置控制挡板
+- 预测球落点提前移动
+- 自动开始新游戏
+- 自动发球
 
 ### auto-slot-machine.js（老虎机抽奖）
 
@@ -26,6 +56,14 @@
 
 ## 使用方法
 
+### auto-windhub.js
+
+1. 访问 WindHub 福利站的农场/抽卡/砖块页面
+2. 页面右上角会出现对应功能的悬浮面板
+3. 点击「设置」配置参数
+4. 点击「开始」启动自动化
+5. 点击「停止」或点击面板标题栏的 `−` 最小化
+
 ### auto-slot-machine.js
 
 1. 点击右上角的蓝色悬浮按钮（▶️）开始自动抽奖
@@ -45,6 +83,7 @@
 
 1. 安装 [Tampermonkey](https://www.tampermonkey.net/) 浏览器扩展
 2. 点击下方链接安装脚本：
+   - [auto-windhub.user.js](https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/auto-windhub.user.js)
    - [auto-card-draw.user.js](https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/auto-card-draw.user.js)
    - [auto-slot-machine.user.js](https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/auto-slot-machine.user.js)
 
