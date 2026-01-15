@@ -276,13 +276,19 @@ window.WH = window.WH || {};
       const emptyTiles = Array.from(document.querySelectorAll('.tile.empty'));
       let totalPlanted = 0;
 
+      console.log(`[自动农场] 数据收集开始: 空地=${emptyTiles.length}, 需要数据的作物=${seedsNeedData.length}`);
+
       // 每种作物种1块，最多种到空地数量
-      const toPlant = seedsNeedData.slice(0, emptyCount);
+      const toPlant = seedsNeedData.slice(0, Math.min(emptyCount, emptyTiles.length));
+      console.log(`[自动农场] 计划种植: ${toPlant.map(s => s.name).join(', ')}`);
 
       for (let i = 0; i < toPlant.length; i++) {
         const seed = toPlant[i];
         const tile = emptyTiles[i];
-        if (!tile) break;
+        if (!tile) {
+          console.log(`[自动农场] 第 ${i} 块空地不存在，跳过`);
+          break;
+        }
 
         // 检查余额
         const currentBalance = WH.getWalletBalance();
@@ -292,7 +298,10 @@ window.WH = window.WH || {};
         }
 
         const plotIndex = tile.dataset.plotIndex;
-        if (plotIndex === undefined) continue;
+        if (plotIndex === undefined) {
+          console.log(`[自动农场] plotIndex 不存在，跳过`);
+          continue;
+        }
 
         // 记录成本
         if (!this.profitData[seed.id]) {
@@ -309,12 +318,13 @@ window.WH = window.WH || {};
               plot_indices: JSON.stringify([parseInt(plotIndex)])
             });
             totalPlanted++;
-            console.log(`[自动农场] 数据收集: 种植 ${seed.name}`);
+            console.log(`[自动农场] 数据收集: 种植 ${seed.name} 在位置 ${plotIndex}`);
           } catch (e) {
             console.error(`[自动农场] 种植 ${seed.name} 失败:`, e);
           }
         } else {
           // 手动点击种植
+          console.log(`[自动农场] 使用手动点击种植 ${seed.name}`);
           if (seed.element) {
             seed.element.click();
             await new Promise(r => setTimeout(r, 200));
