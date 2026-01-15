@@ -107,7 +107,7 @@ window.WH = window.WH || {};
 
       if (needData.length > 0) {
         // 数据收集模式：返回所有需要收集数据的作物
-        console.log(`[自动农场] 数据收集模式: ${needData.length} 种作物需要收集数据`);
+        console.log(`[自动农场] 数据收集模式: ${needData.length} 种作物需要收集数据:`, needData.map(s => `${s.name}(${s.id})`).join(', '));
         return { seeds: needData, isDataCollection: true };
       }
 
@@ -262,6 +262,7 @@ window.WH = window.WH || {};
 
       // 判断是否是数据收集模式
       const isDataCollection = result.isDataCollection === true;
+      console.log(`[自动农场] plant() isDataCollection=${isDataCollection}, result=`, result);
 
       if (isDataCollection) {
         // 数据收集模式：每种缺少数据的作物各种1块
@@ -629,6 +630,7 @@ window.WH = window.WH || {};
         this.stats.totalProfit = 0;
         this.saveProfitData();
         WH.showToast('收益数据已清空');
+        WH.updateStatsDisplay();
       };
     }
   };
