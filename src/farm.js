@@ -325,27 +325,62 @@ window.WH = window.WH || {};
         // 种植
         if (typeof window.doAction === 'function') {
           try {
+            console.log(`[自动农场] 调用 doAction('plant_many', { crop_key: '${seed.id}', plot_indices: '[${plotIndex}]' })`);
             await window.doAction('plant_many', {
               crop_key: seed.id,
               plot_indices: JSON.stringify([parseInt(plotIndex)])
             });
             totalPlanted++;
-            console.log(`[自动农场] 数据收集: 种植 ${seed.name} 在位置 ${plotIndex}`);
+            console.log(`[自动农场] 数据收集: 种植 ${seed.name} 在位置 ${plotIndex} 成功`);
           } catch (e) {
             console.error(`[自动农场] 种植 ${seed.name} 失败:`, e);
           }
         } else {
-          // 手动点击种植
-          console.log(`[自动农场] 使用手动点击种植 ${seed.name}`);
+          // 手动拖拽种植模式
+          console.log(`[自动农场] 使用拖拽种植 ${seed.name}`);
+
           if (seed.element) {
-            seed.element.click();
-            // 等待种子选择生效（需要足够时间让网站响应）
-            await new Promise(r => setTimeout(r, 500));
+            // 模拟从种子拖拽到空地的过程
+            const seedRect = seed.element.getBoundingClientRect();
+            const tileRect = tile.getBoundingClientRect();
+
+            // 1. 在种子上 mousedown
+            const mousedownEvent = new MouseEvent('mousedown', {
+              bubbles: true,
+              cancelable: true,
+              clientX: seedRect.left + seedRect.width / 2,
+              clientY: seedRect.top + seedRect.height / 2,
+              button: 0
+            });
+            seed.element.dispatchEvent(mousedownEvent);
+            console.log(`[自动农场] mousedown on ${seed.name}`);
+            await new Promise(r => setTimeout(r, 100));
+
+            // 2. mousemove 到空地
+            const mousemoveEvent = new MouseEvent('mousemove', {
+              bubbles: true,
+              cancelable: true,
+              clientX: tileRect.left + tileRect.width / 2,
+              clientY: tileRect.top + tileRect.height / 2,
+              button: 0
+            });
+            document.dispatchEvent(mousemoveEvent);
+            await new Promise(r => setTimeout(r, 50));
+
+            // 3. 在空地上 mouseup
+            const mouseupEvent = new MouseEvent('mouseup', {
+              bubbles: true,
+              cancelable: true,
+              clientX: tileRect.left + tileRect.width / 2,
+              clientY: tileRect.top + tileRect.height / 2,
+              button: 0
+            });
+            tile.dispatchEvent(mouseupEvent);
+            console.log(`[自动农场] mouseup on tile ${plotIndex}`);
+
+            totalPlanted++;
+            await new Promise(r => setTimeout(r, 300));
           }
-          tile.click();
-          totalPlanted++;
-          // 等待种植完成再处理下一个
-          await new Promise(r => setTimeout(r, 300));
         }
       }
 
