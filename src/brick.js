@@ -25,6 +25,7 @@ window.WH = window.WH || {};
     lastStartTime: null,
     scanPosition: 0,
     scanDirection: 1,
+    logCounter: 0,
 
     init() {
       this.config = { ...this.defaultConfig };
@@ -39,52 +40,123 @@ window.WH = window.WH || {};
     },
 
     initCanvas() {
-      this.gameState.canvas = document.getElementById('game-canvas');
+      // 尝试多种方式获取 canvas
+      this.gameState.canvas = document.getElementById('game-canvas')
+        || document.querySelector('canvas#game-canvas')
+        || document.querySelector('canvas[id*="game"]')
+        || document.querySelector('canvas');
+
       if (this.gameState.canvas) {
         this.scanPosition = this.gameState.canvas.width / 2;
+        console.log('[自动打砖块] Canvas 找到:', this.gameState.canvas.width, 'x', this.gameState.canvas.height);
+      } else {
+        console.warn('[自动打砖块] 未找到 Canvas');
       }
     },
 
     movePaddle(x) {
-      if (!this.gameState.canvas) return;
+      if (!this.gameState.canvas) {
+        this.initCanvas();
+        if (!this.gameState.canvas) return;
+      }
       const rect = this.gameState.canvas.getBoundingClientRect();
-      const event = new PointerEvent('pointermove', {
+      const clientX = rect.left + x;
+      const clientY = rect.top + rect.height - 50;
+
+      // 尝试 PointerEvent
+      const pointerEvent = new PointerEvent('pointermove', {
         bubbles: true, cancelable: true,
-        clientX: rect.left + x,
-        clientY: rect.top + rect.height - 50,
+        clientX, clientY,
         pointerType: 'mouse'
       });
-      this.gameState.canvas.dispatchEvent(event);
+      this.gameState.canvas.dispatchEvent(pointerEvent);
+
+      // 同时尝试 MouseEvent 作为备选
+      const mouseEvent = new MouseEvent('mousemove', {
+        bubbles: true, cancelable: true,
+        clientX, clientY
+      });
+      this.gameState.canvas.dispatchEvent(mouseEvent);
     },
 
     pressKey(key) {
       const keyCode = key === ' ' ? 32 : (key === 'ArrowLeft' ? 37 : (key === 'ArrowRight' ? 39 : 0));
-      document.dispatchEvent(new KeyboardEvent('keydown', {
-        key, code: key === ' ' ? 'Space' : key, keyCode, which: keyCode, bubbles: true
-      }));
+      const eventInit = {
+        key,
+        code: key === ' ' ? 'Space' : key,
+        keyCode,
+        which: keyCode,
+        bubbles: true,
+        cancelable: true
+      };
+      // 发送到 document
+      document.dispatchEvent(new KeyboardEvent('keydown', eventInit));
+      // 也发送到 canvas (有些游戏监听 canvas)
+      if (this.gameState.canvas) {
+        this.gameState.canvas.dispatchEvent(new KeyboardEvent('keydown', eventInit));
+      }
+      // 发送到 window
+      window.dispatchEvent(new KeyboardEvent('keydown', eventInit));
     },
 
     isElementVisible(el) {
       if (!el) return false;
       const style = window.getComputedStyle(el);
-      return style.display !== 'none' && style.visibility !== 'hidden' && el.offsetParent !== null;
+      // 检查 display 和 visibility
+      if (style.display === 'none' || style.visibility === 'hidden') return false;
+      // 检查尺寸
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return false;
+      // 检查 opacity
+      if (parseFloat(style.opacity) === 0) return false;
+      return true;
+    },
+
+    findStartButton() {
+      // 尝试多种方式查找开始按钮
+      return document.getElementById('btn-start')
+        || document.querySelector('button#btn-start')
+        || document.querySelector('button[id*="start"]:not([id*="auto"])')
+        || document.querySelector('.btn-start')
+        || document.querySelector('[class*="start-btn"]')
+        || document.querySelector('button.start');
+    },
+
+    findPauseButton() {
+      return document.getElementById('btn-pause')
+        || document.querySelector('button#btn-pause')
+        || document.querySelector('button[id*="pause"]')
+        || document.querySelector('.btn-pause')
+        || document.querySelector('[class*="pause"]');
     },
 
     isGamePlaying() {
-      const pauseBtn = document.getElementById('btn-pause');
-      const startBtn = document.getElementById('btn-start');
-      return this.isElementVisible(pauseBtn) && !this.isElementVisible(startBtn);
+      const pauseBtn = this.findPauseButton();
+      const startBtn = this.findStartButton();
+      const pauseVisible = this.isElementVisible(pauseBtn);
+      const startVisible = this.isElementVisible(startBtn);
+      // 每 60 帧输出一次日志
+      if (this.logCounter % 60 === 0) {
+        console.log('[自动打砖块] 游戏状态: pause=', pauseVisible, 'start=', startVisible);
+      }
+      this.logCounter++;
+      return pauseVisible && !startVisible;
     },
 
     canStartGame() {
       if (this.lastStartTime && Date.now() - this.lastStartTime < 3000) return false;
-      const startBtn = document.getElementById('btn-start');
-      return startBtn && !startBtn.disabled && this.isElementVisible(startBtn);
+      const startBtn = this.findStartButton();
+      const canStart = startBtn && !startBtn.disabled && this.isElementVisible(startBtn);
+      if (this.logCounter % 60 === 0) {
+        console.log('[自动打砖块] 可以开始:', canStart);
+      }
+      return canStart;
     },
 
     startNewGame() {
-      const startBtn = document.getElementById('btn-start');
+      const startBtn = this.findStartButton();
       if (startBtn && !startBtn.disabled && this.isElementVisible(startBtn)) {
+        console.log('[自动打砖块] 点击开始按钮');
         this.lastStartTime = Date.now();
         startBtn.click();
         this.stats.games++;
@@ -92,7 +164,12 @@ window.WH = window.WH || {};
         if (this.gameState.canvas) {
           this.scanPosition = this.gameState.canvas.width / 2;
         }
-        setTimeout(() => this.pressKey(' '), 1500);
+        setTimeout(() => {
+          console.log('[自动打砖块] 发送空格键');
+          this.pressKey(' ');
+        }, 1500);
+      } else {
+        console.warn('[自动打砖块] 无法启动游戏, btn=', startBtn);
       }
     },
 
@@ -134,6 +211,11 @@ window.WH = window.WH || {};
         }
       }
 
+      // 确保 canvas 存在
+      if (!this.gameState.canvas) {
+        this.initCanvas();
+      }
+
       if (!this.isGamePlaying()) {
         if (this.config.autoStart && this.canStartGame()) {
           WH.updateStatus('启动新游戏...');
@@ -165,6 +247,7 @@ window.WH = window.WH || {};
     },
 
     start() {
+      console.log('[自动打砖块] 启动');
       this.isRunning = true;
       this.initCanvas();
       this.loop();
