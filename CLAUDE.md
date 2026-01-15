@@ -83,9 +83,25 @@ UI 创建和事件绑定
 
 ### 发布流程
 
-1. 更新 `@version` 字段
-2. 提交到 GitHub（脚本通过 `@updateURL` 和 `@downloadURL` 自动更新）
-3. Tampermonkey 会自动检测更新
+本项目使用 GitHub Actions 自动管理版本号和发布：
+
+1. **开发阶段**：正常提交代码，**不需要手动修改** `@version` 字段
+2. **发布新版本**：创建 Git tag 触发自动发布
+   ```bash
+   git tag v1.1.0
+   git push origin v1.1.0
+   ```
+3. **自动化处理**：GitHub Actions 会自动：
+   - 更新所有脚本的 `@version` 字段
+   - 生成 changelog
+   - 创建 GitHub Release
+   - 提交版本更新到 main 分支
+
+4. **版本号规范**：遵循语义化版本（SemVer）
+   - `MAJOR.MINOR.PATCH`（如 `1.2.3`）
+   - MAJOR：不兼容的 API 变更
+   - MINOR：向后兼容的功能新增
+   - PATCH：向后兼容的 Bug 修复
 
 ### 文档同步
 

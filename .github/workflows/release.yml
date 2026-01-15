@@ -1,0 +1,74 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Update version in scripts
+        run: |
+          VERSION=${{ steps.get_version.outputs.VERSION }}
+
+          # Update all userscript files
+          for file in *.user.js; do
+            if [ -f "$file" ]; then
+              sed -i "s/@version.*$/@version      $VERSION/" "$file"
+              echo "Updated $file to version $VERSION"
+            fi
+          done
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          if [ -n "$PREV_TAG" ]; then
+            echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+            git log --pretty=format:"- %s" $PREV_TAG..HEAD >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "CHANGELOG=Initial release" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit version update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add *.user.js
+          git commit -m "chore: bump version to ${{ steps.get_version.outputs.VERSION }}" || echo "No changes to commit"
+          git push origin HEAD:main
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body: |
+            ## Changes
+            ${{ steps.changelog.outputs.CHANGELOG }}
+
+            ## Installation
+            Click the script link below to install via Tampermonkey:
+            - [auto-windhub.user.js](https://raw.githubusercontent.com/${{ github.repository }}/main/auto-windhub.user.js)
+            - [auto-slot-machine.user.js](https://raw.githubusercontent.com/${{ github.repository }}/main/auto-slot-machine.user.js)
+            - [auto-card-draw.user.js](https://raw.githubusercontent.com/${{ github.repository }}/main/auto-card-draw.user.js)
+          files: |
+            *.user.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

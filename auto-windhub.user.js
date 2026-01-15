@@ -187,11 +187,12 @@
     },
 
     getAvailableSeeds() {
-      const seedItems = document.querySelectorAll('.seed-item');
+      const seedItems = document.querySelectorAll('.seed-item:not(.locked)');
       const seeds = [];
       seedItems.forEach(item => {
-        const name = item.getAttribute('data-name') || item.textContent.trim();
-        const id = item.getAttribute('data-id') || item.getAttribute('data-seed');
+        const nameEl = item.querySelector('.seed-name');
+        const name = nameEl ? nameEl.textContent.trim() : item.getAttribute('title') || '未知';
+        const id = item.getAttribute('data-crop-key');
         if (id) seeds.push({ id, name, element: item });
       });
       return seeds;
@@ -259,15 +260,18 @@
       const emptyTiles = document.querySelectorAll('.tile.empty');
       const plotIndices = [];
       emptyTiles.forEach(tile => {
-        const index = tile.getAttribute('data-index') || tile.getAttribute('data-plot');
-        if (index !== null) plotIndices.push(parseInt(index));
+        const index = tile.dataset.plotIndex;
+        if (index !== undefined) plotIndices.push(parseInt(index));
       });
 
       if (plotIndices.length === 0) return 0;
 
       if (typeof window.doAction === 'function') {
         try {
-          await window.doAction('plant_many', { seed: selectedSeed.id, plots: plotIndices });
+          await window.doAction('plant_many', {
+            crop_key: selectedSeed.id,
+            plot_indices: JSON.stringify(plotIndices)
+          });
           this.stats.planted += plotIndices.length;
           showToast(`种植了 ${plotIndices.length} 块 ${selectedSeed.name}`);
           return plotIndices.length;
@@ -545,6 +549,7 @@
     animationId: null,
     stats: { games: 0, bricks: 0, chests: 0 },
     gameState: { ball: null, paddle: null, canvas: null },
+    lastStartTime: null,
 
     init() {
       this.config = { ...this.defaultConfig };
@@ -606,24 +611,34 @@
       return x;
     },
 
+    isElementVisible(el) {
+      if (!el) return false;
+      const style = window.getComputedStyle(el);
+      return style.display !== 'none' && style.visibility !== 'hidden' && el.offsetParent !== null;
+    },
+
     isGamePlaying() {
       const pauseBtn = document.getElementById('btn-pause');
       const startBtn = document.getElementById('btn-start');
-      return pauseBtn && startBtn && pauseBtn.style.display !== 'none' && startBtn.style.display === 'none';
+      // 游戏进行中：暂停按钮可见，开始按钮不可见
+      return this.isElementVisible(pauseBtn) && !this.isElementVisible(startBtn);
     },
 
     canStartGame() {
+      // 防止频繁点击开始按钮
+      if (this.lastStartTime && Date.now() - this.lastStartTime < 3000) return false;
       const startBtn = document.getElementById('btn-start');
-      return startBtn && !startBtn.disabled && startBtn.style.display !== 'none';
+      return startBtn && !startBtn.disabled && this.isElementVisible(startBtn);
     },
 
     startNewGame() {
       const startBtn = document.getElementById('btn-start');
-      if (startBtn && !startBtn.disabled) {
+      if (startBtn && !startBtn.disabled && this.isElementVisible(startBtn)) {
+        this.lastStartTime = Date.now();
         startBtn.click();
         this.stats.games++;
         updateStatsDisplay();
-        setTimeout(() => this.pressKey(' '), 1000);
+        setTimeout(() => this.pressKey(' '), 1500);
       }
     },
 
