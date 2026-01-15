@@ -72,7 +72,10 @@ window.WH = window.WH || {};
     },
 
     getBestSeed(seeds) {
-      if (!this.config.autoSelectBest || seeds.length === 0) {
+      if (seeds.length === 0) return null;
+
+      // 如果没有开启智能选种，使用手动选择的种子
+      if (!this.config.autoSelectBest) {
         if (this.config.selectedSeed) {
           const found = seeds.find(s => s.id === this.config.selectedSeed);
           if (found) return found;
@@ -80,7 +83,8 @@ window.WH = window.WH || {};
         return seeds[0];
       }
 
-      let bestSeed = seeds[0];
+      // 智能选种：计算 ROI
+      let bestSeed = null;
       let bestROI = -Infinity;
 
       seeds.forEach(seed => {
@@ -95,8 +99,14 @@ window.WH = window.WH || {};
         }
       });
 
+      // 如果没有收益数据，优先使用手动选择的种子，否则选成本最低的
       if (bestROI === -Infinity) {
-        bestSeed = seeds.reduce((min, s) => s.cost < min.cost ? s : min, seeds[0]);
+        if (this.config.selectedSeed) {
+          const found = seeds.find(s => s.id === this.config.selectedSeed);
+          if (found) return found;
+        }
+        // 没有手动选择，选成本最低的
+        return seeds.reduce((min, s) => s.cost < min.cost ? s : min, seeds[0]);
       }
 
       return bestSeed;
@@ -415,8 +425,8 @@ window.WH = window.WH || {};
         </div>
         <div class="${PREFIX}-input-group">
           <div class="${PREFIX}-input-row">
-            <label>手动指定种子</label>
-            <select id="sel-seed" ${this.config.autoSelectBest ? 'disabled' : ''}><option value="">不指定</option>${seedOptions}</select>
+            <label>默认/备选种子</label>
+            <select id="sel-seed"><option value="">自动</option>${seedOptions}</select>
           </div>
         </div>
         <div class="${PREFIX}-input-group">
@@ -441,11 +451,7 @@ window.WH = window.WH || {};
 
       document.getElementById('tog-harvest').onclick = (e) => e.target.classList.toggle('active');
       document.getElementById('tog-plant').onclick = (e) => e.target.classList.toggle('active');
-      document.getElementById('tog-smart').onclick = (e) => {
-        e.target.classList.toggle('active');
-        const seedSelect = document.getElementById('sel-seed');
-        seedSelect.disabled = e.target.classList.contains('active');
-      };
+      document.getElementById('tog-smart').onclick = (e) => e.target.classList.toggle('active');
       document.getElementById('btn-clear-profit').onclick = () => {
         this.profitData = {};
         this.stats.totalProfit = 0;
