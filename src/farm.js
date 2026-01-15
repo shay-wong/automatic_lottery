@@ -25,6 +25,22 @@ window.WH = window.WH || {};
     stats: { harvested: 0, planted: 0, totalProfit: 0 },
     profitData: {},
     pendingHarvest: null,
+    // 固定收益数据（每块地的收益）
+    fixedProfits: {
+      wheat: 37,      // 小麦
+      carrot: 64,     // 胡萝卜
+      potato: 91,     // 土豆
+      strawberry: 142, // 草莓
+      tomato: 70,     // 番茄
+      cabbage: 86,    // 卷心菜
+      corn: 98,       // 玉米
+      onion: 102,     // 洋葱
+      pepper: 147,    // 辣椒
+      pumpkin: 222,   // 南瓜
+      blueberry: 201, // 蓝莓
+      rice: 178,      // 水稻
+      cotton: 190,    // 棉花
+    },
 
     init() {
       this.config = { ...this.defaultConfig };
@@ -32,9 +48,24 @@ window.WH = window.WH || {};
         const saved = localStorage.getItem(this.configKey);
         if (saved) this.config = { ...this.defaultConfig, ...JSON.parse(saved) };
       } catch (e) {}
+
+      // 初始化固定收益数据
       try {
         const profitSaved = localStorage.getItem('wh_farm_profit');
-        if (profitSaved) this.profitData = JSON.parse(profitSaved);
+        if (profitSaved) {
+          this.profitData = JSON.parse(profitSaved);
+        } else {
+          // 使用固定收益数据初始化
+          this.profitData = {};
+          Object.keys(this.fixedProfits).forEach(cropId => {
+            this.profitData[cropId] = {
+              totalProfit: this.fixedProfits[cropId],
+              totalCost: 0,
+              count: 1
+            };
+          });
+          this.saveProfitData();
+        }
       } catch (e) {}
     },
 
@@ -188,49 +219,40 @@ window.WH = window.WH || {};
         }
       }
 
-      // 多种作物：逐块收割，记录每块地的详细信息
+      // 多种作物：按作物类型分组，快速收割
       let totalCount = 0;
-      const allReadyTiles = Array.from(document.querySelectorAll('.tile.ready'));
-
-      console.log(`[自动农场] 开始逐块收割，共 ${allReadyTiles.length} 块`);
-
-      for (const tile of allReadyTiles) {
-        const info = tile.querySelector('.tile-info');
-        if (!info) continue;
-
-        const cropName = info.textContent.split(':')[0].trim();
-        const plotIndex = tile.dataset.plotIndex || '?';
-
-        // 记录收割前余额
-        const balanceBefore = WH.getWalletBalance();
-
-        // 点击收割
-        tile.click();
-        totalCount++;
-
-        // 等待收割完成，余额更新
-        await new Promise(r => setTimeout(r, 300));
-
-        // 记录收益
-        const balanceAfter = WH.getWalletBalance();
-        const profit = balanceAfter - balanceBefore;
-
-        console.log(`[自动农场] 地块 ${plotIndex}: ${cropName}, 收益 ${profit}`);
-
-        // 记录到统计数据
-        if (profit > 0) {
-          this.stats.totalProfit += profit;
-          const seeds = this.getAvailableSeeds();
-          const seed = seeds.find(s => s.name === cropName);
-          if (seed) {
-            if (!this.profitData[seed.id]) {
-              this.profitData[seed.id] = { totalProfit: 0, totalCost: 0, count: 0 };
-            }
-            this.profitData[seed.id].totalProfit += profit;
-            this.profitData[seed.id].count += 1;
-            this.saveProfitData();
+      for (const cropName of cropNames) {
+        const tiles = Array.from(document.querySelectorAll('.tile.ready')).filter(tile => {
+          const info = tile.querySelector('.tile-info');
+          if (info) {
+            const name = info.textContent.split(':')[0].trim();
+            return name === cropName;
           }
+          return false;
+        });
+
+        if (tiles.length === 0) continue;
+
+        // 快速连续点击收割这种作物的所有地块
+        for (const tile of tiles) {
+          tile.click();
+          totalCount++;
         }
+
+        // 等待收割完成
+        await new Promise(r => setTimeout(r, 800));
+
+        // 使用固定收益数据记录
+        const seeds = this.getAvailableSeeds();
+        const seed = seeds.find(s => s.name === cropName);
+        if (seed && this.fixedProfits[seed.id]) {
+          const profit = this.fixedProfits[seed.id] * tiles.length;
+          this.stats.totalProfit += profit;
+          console.log(`[自动农场] 收割 ${tiles.length} 块 ${cropName}，收益 ${profit}`);
+        }
+
+        // 短暂等待再处理下一种作物
+        await new Promise(r => setTimeout(r, 200));
       }
 
       this.stats.harvested += totalCount;
