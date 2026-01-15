@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         WindHub 自动化助手
-// @version      1.8.0
+// @version      1.9.0
 // @description  WindHub 福利站自动化脚本，支持农场、抽卡、打砖块
 // @license      Apache-2.0
 // @homepage     https://github.com/shay-wong/automatic_lottery
@@ -18,7 +18,7 @@
 (function () {
   'use strict';
 
-  // 自动从 @version 读取版本号
+  // 自动从 @version      1.9.0
   WH.version = (typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version)
     ? GM_info.script.version
     : '';
