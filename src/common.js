@@ -328,4 +328,5 @@ window.WH = window.WH || {};
   WH.updateConfigDisplay = updateConfigDisplay;
   WH.init = init;
   WH.isRunning = () => isRunning;
+  WH.stop = stop;
 })();

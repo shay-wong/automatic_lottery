@@ -208,8 +208,7 @@ window.WH = window.WH || {};
       // 检查是否达到局数限制
       if (this.config.maxGames > 0 && this.stats.games >= this.config.maxGames) {
         WH.showToast(`已完成 ${this.config.maxGames} 局游戏`);
-        WH.updateStatus(`已完成 ${this.config.maxGames} 局`);
-        this.stop();
+        WH.stop(`已完成 ${this.config.maxGames} 局`);
         return;
       }
 
@@ -218,8 +217,7 @@ window.WH = window.WH || {};
         const currentBalance = WH.getWalletBalance();
         if (currentBalance < this.config.minBalance) {
           WH.showToast(`余额不足，当前 ${currentBalance.toFixed(0)}，最低 ${this.config.minBalance}`);
-          WH.updateStatus('余额不足，已停止');
-          this.stop();
+          WH.stop('余额不足，已停止');
           return;
         }
       }

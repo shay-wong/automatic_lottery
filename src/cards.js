@@ -61,9 +61,8 @@ window.WH = window.WH || {};
 
       if (remaining <= 0 && this.config.autoStop) {
         console.log('[自动抽卡] 次数用完，停止');
-        this.stop();
+        WH.stop('次数已用完');
         WH.showToast('抽卡次数已用完');
-        WH.updateStatus('次数已用完');
         return;
       }
 
@@ -72,9 +71,8 @@ window.WH = window.WH || {};
         const currentBalance = WH.getWalletBalance();
         console.log(`[自动抽卡] 余额检查: ${currentBalance} vs ${this.config.minBalance}`);
         if (currentBalance < this.config.minBalance) {
-          this.stop();
+          WH.stop('余额不足，已停止');
           WH.showToast(`余额不足，当前 ${currentBalance.toFixed(0)}，最低 ${this.config.minBalance}`);
-          WH.updateStatus('余额不足，已停止');
           return;
         }
       }

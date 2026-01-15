@@ -340,8 +340,7 @@ window.WH = window.WH || {};
       const minRequired = this.config.minBalance + totalCost;
       if (currentBalance < minRequired) {
         WH.showToast(`余额不足，需要 ${minRequired.toFixed(0)}，当前 ${currentBalance.toFixed(0)}`);
-        WH.updateStatus(`余额不足，已停止`);
-        this.stop();
+        WH.stop('余额不足，已停止');
         return 0;
       }
 
@@ -426,8 +425,7 @@ window.WH = window.WH || {};
       const stamina = this.getStamina();
       if (stamina && stamina.current <= 0) {
         WH.showToast('体力已用完，自动停止');
-        WH.updateStatus('体力已用完');
-        this.stop();
+        WH.stop('体力已用完');
         return;
       }
 
