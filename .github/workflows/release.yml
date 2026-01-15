@@ -53,7 +53,10 @@ jobs:
           VERSION="${{ steps.parse_tag.outputs.VERSION }}"
 
           if [ -f "$SCRIPT" ]; then
+            # 更新 @version 字段
             sed -i "s/@version.*$/@version      $VERSION/" "$SCRIPT"
+            # 更新 @require 的版本参数（用于破坏 Tampermonkey 缓存）
+            sed -i "s/\?v=[0-9.]*/?v=$VERSION/g" "$SCRIPT"
             echo "Updated $SCRIPT to version $VERSION"
           fi
 

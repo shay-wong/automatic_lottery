@@ -8,17 +8,17 @@
 // @downloadURL  https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/auto-windhub.user.js
 // @supportURL   https://github.com/shay-wong/automatic_lottery/issues
 // @match        https://wcdk.224442.xyz/*
-// @require      https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/src/common.js
-// @require      https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/src/farm.js
-// @require      https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/src/cards.js
-// @require      https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/src/brick.js
+// @require      https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/src/common.js?v=1.9.0
+// @require      https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/src/farm.js?v=1.9.0
+// @require      https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/src/cards.js?v=1.9.0
+// @require      https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/src/brick.js?v=1.9.0
 // @grant        none
 // ==/UserScript==
 
 (function () {
   'use strict';
 
-  // 自动从 @version      1.9.0
+  // 自动从 GM_info 读取版本号
   WH.version = (typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version)
     ? GM_info.script.version
     : '';
