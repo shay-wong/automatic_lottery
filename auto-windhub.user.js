@@ -18,6 +18,9 @@
 (function () {
   'use strict';
 
+  // 版本号（与 @version 保持一致）
+  WH.version = '1.5.0';
+
   function init() {
     const path = window.location.pathname;
     let module = null;

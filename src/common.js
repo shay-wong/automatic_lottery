@@ -63,7 +63,8 @@ window.WH = window.WH || {};
         background: rgba(255,255,255,0.03); user-select: none;
       }
       .${PREFIX}-header-left { display: flex; flex-direction: column; }
-      .${PREFIX}-title { font-weight: 600; font-size: 15px; color: rgba(255,255,255,0.95); }
+      .${PREFIX}-title { font-weight: 600; font-size: 15px; color: rgba(255,255,255,0.95); display: flex; align-items: baseline; gap: 6px; }
+      .${PREFIX}-version { font-size: 11px; font-weight: 400; color: rgba(235,235,245,0.4); }
       .${PREFIX}-header-status { display: none; font-size: 11px; color: rgba(235,235,245,0.5); margin-top: 6px; align-items: center; gap: 6px; }
       .${PREFIX}-header-status .${PREFIX}-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.2); }
       #${PREFIX}-panel.minimized .${PREFIX}-header-status { display: flex; }
@@ -250,12 +251,15 @@ window.WH = window.WH || {};
     `;
     document.head.appendChild(moduleStyle);
 
+    const version = WH.version || '';
+    const versionDisplay = version ? `<span class="${PREFIX}-version">v${version}</span>` : '';
+
     const panel = document.createElement('div');
     panel.id = `${PREFIX}-panel`;
     panel.innerHTML = `
       <div class="${PREFIX}-header">
         <div class="${PREFIX}-header-left">
-          <span class="${PREFIX}-title">${currentModule.name}</span>
+          <span class="${PREFIX}-title">${currentModule.name}${versionDisplay}</span>
           <div class="${PREFIX}-header-status" id="${PREFIX}-header-status"><span class="${PREFIX}-dot"></span><span id="${PREFIX}-header-status-text">准备就绪</span></div>
         </div>
         <div class="${PREFIX}-header-right">

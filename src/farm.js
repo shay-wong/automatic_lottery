@@ -231,6 +231,13 @@ window.WH = window.WH || {};
       const balanceAfter = WH.getWalletBalance();
       const profit = balanceAfter - balanceBefore;
 
+      console.log(`[自动农场] 收益计算: ${cropName}`);
+      console.log(`  收割前余额: ${balanceBefore}`);
+      console.log(`  收割后余额: ${balanceAfter}`);
+      console.log(`  收益: ${balanceAfter} - ${balanceBefore} = ${profit}`);
+      console.log(`  数量: ${count}`);
+      console.log(`  每块: ${profit} / ${count} = ${profit / count}`);
+
       if (profit > 0 && count > 0) {
         this.stats.totalProfit += profit;
         const profitPerCrop = profit / count;
@@ -241,11 +248,15 @@ window.WH = window.WH || {};
           if (!this.profitData[seed.id]) {
             this.profitData[seed.id] = { totalProfit: 0, totalCost: 0, count: 0 };
           }
+          const oldData = { ...this.profitData[seed.id] };
           this.profitData[seed.id].totalProfit += profit;
           this.profitData[seed.id].count += count;
           this.saveProfitData();
-          console.log(`[自动农场] 记录 ${cropName}: ${profitPerCrop.toFixed(2)}/块, 共 ${count} 块, 总收益 +${profit.toFixed(2)}`);
+          console.log(`  累计数据: totalProfit ${oldData.totalProfit} -> ${this.profitData[seed.id].totalProfit}, count ${oldData.count} -> ${this.profitData[seed.id].count}`);
+          console.log(`  平均收益: ${this.profitData[seed.id].totalProfit} / ${this.profitData[seed.id].count} = ${this.profitData[seed.id].totalProfit / this.profitData[seed.id].count}`);
         }
+      } else {
+        console.log(`  跳过记录: profit=${profit}, count=${count}`);
       }
     },
 
@@ -328,11 +339,13 @@ window.WH = window.WH || {};
           console.log(`[自动农场] 使用手动点击种植 ${seed.name}`);
           if (seed.element) {
             seed.element.click();
-            await new Promise(r => setTimeout(r, 200));
+            // 等待种子选择生效（需要足够时间让网站响应）
+            await new Promise(r => setTimeout(r, 500));
           }
           tile.click();
           totalPlanted++;
-          await new Promise(r => setTimeout(r, 150));
+          // 等待种植完成再处理下一个
+          await new Promise(r => setTimeout(r, 300));
         }
       }
 
