@@ -109,6 +109,12 @@ window.WH = window.WH || {};
       if (rect.width === 0 || rect.height === 0) return false;
       // 检查 opacity
       if (parseFloat(style.opacity) === 0) return false;
+      // 检查是否在视口内（防止元素被移到屏幕外）
+      const inViewport = rect.right > 0 && rect.bottom > 0 &&
+        rect.left < window.innerWidth && rect.top < window.innerHeight;
+      if (!inViewport) return false;
+      // 检查 pointer-events
+      if (style.pointerEvents === 'none') return false;
       return true;
     },
 
