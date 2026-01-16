@@ -265,6 +265,14 @@ window.WH = window.WH || {};
       if (toggleBtn && currentModule._seedListExpanded !== undefined) {
         toggleBtn.onclick = () => {
           currentModule._seedListExpanded = !currentModule._seedListExpanded;
+          if (currentModule.config) {
+            currentModule.config.seedListExpanded = currentModule._seedListExpanded;
+            if (typeof currentModule.saveConfig === 'function') {
+              currentModule.saveConfig();
+            } else if (currentModule.configKey) {
+              saveConfig(currentModule.configKey, currentModule.config);
+            }
+          }
           updateStatsDisplay();
         };
       }
@@ -306,6 +314,15 @@ window.WH = window.WH || {};
 
   function createPanel() {
     injectBaseStyles();
+
+    const panelStateKey = `${PREFIX}_panel_state_${currentModule?.configKey || 'default'}`;
+    const panelState = loadConfig(panelStateKey, {
+      left: null,
+      top: null,
+      width: null,
+      height: null,
+      minimized: false
+    });
 
     // 添加模块特定样式
     const moduleStyle = document.createElement('style');
@@ -362,10 +379,81 @@ window.WH = window.WH || {};
 
     const header = panel.querySelector(`.${PREFIX}-header`);
     const minBtn = panel.querySelector(`.${PREFIX}-min-btn`);
-    minBtn.onclick = () => {
-      panel.classList.toggle('minimized');
-      minBtn.textContent = panel.classList.contains('minimized') ? '+' : '−';
+
+    const applyPanelState = () => {
+      if (typeof panelState.left === 'number') {
+        panel.style.left = panelState.left + 'px';
+        panel.style.right = 'auto';
+      }
+      if (typeof panelState.top === 'number') {
+        panel.style.top = panelState.top + 'px';
+      }
+      if (typeof panelState.width === 'number') {
+        panel.dataset.expandedWidth = String(panelState.width);
+      }
+      if (typeof panelState.height === 'number') {
+        panel.dataset.expandedHeight = String(panelState.height);
+      }
+      if (panelState.minimized) {
+        panel.classList.add('minimized');
+        minBtn.textContent = '+';
+        panel.style.width = '';
+        panel.style.height = '';
+      } else {
+        if (typeof panelState.width === 'number') panel.style.width = panelState.width + 'px';
+        if (typeof panelState.height === 'number') panel.style.height = panelState.height + 'px';
+      }
     };
+
+    const savePanelState = (forceMinimized) => {
+      const rect = panel.getBoundingClientRect();
+      const isMinimized = typeof forceMinimized === 'boolean'
+        ? forceMinimized
+        : panel.classList.contains('minimized');
+      let width = rect.width;
+      let height = rect.height;
+
+      if (!isMinimized) {
+        panel.dataset.expandedWidth = String(Math.round(rect.width));
+        panel.dataset.expandedHeight = String(Math.round(rect.height));
+      } else {
+        const cachedWidth = Number(panel.dataset.expandedWidth);
+        const cachedHeight = Number(panel.dataset.expandedHeight);
+        if (Number.isFinite(cachedWidth)) width = cachedWidth;
+        if (Number.isFinite(cachedHeight)) height = cachedHeight;
+      }
+
+      saveConfig(panelStateKey, {
+        left: Math.round(rect.left),
+        top: Math.round(rect.top),
+        width: Math.round(width),
+        height: Math.round(height),
+        minimized: isMinimized
+      });
+    };
+
+    minBtn.onclick = () => {
+      if (!panel.classList.contains('minimized')) {
+        const rect = panel.getBoundingClientRect();
+        panel.dataset.expandedWidth = String(Math.round(rect.width));
+        panel.dataset.expandedHeight = String(Math.round(rect.height));
+      }
+      panel.classList.toggle('minimized');
+      const isMinimized = panel.classList.contains('minimized');
+      if (isMinimized) {
+        panel.style.width = '';
+        panel.style.height = '';
+      } else {
+        const cachedWidth = Number(panel.dataset.expandedWidth);
+        const cachedHeight = Number(panel.dataset.expandedHeight);
+        if (Number.isFinite(cachedWidth)) panel.style.width = cachedWidth + 'px';
+        if (Number.isFinite(cachedHeight)) panel.style.height = cachedHeight + 'px';
+      }
+      minBtn.textContent = isMinimized ? '+' : '−';
+      savePanelState(isMinimized);
+    };
+
+    applyPanelState();
 
     // 拖拽
     let dragging = false, offsetX, offsetY;
@@ -384,7 +472,11 @@ window.WH = window.WH || {};
       panel.style.right = 'auto';
     });
     window.addEventListener('mouseup', () => {
-      if (dragging) { dragging = false; panel.style.transition = ''; }
+      if (dragging) {
+        dragging = false;
+        panel.style.transition = '';
+        savePanelState();
+      }
     });
 
     // 边缘拖拽调整大小
@@ -443,7 +535,11 @@ window.WH = window.WH || {};
     });
 
     window.addEventListener('mouseup', () => {
-      if (resizing) { resizing = false; panel.style.transition = ''; }
+      if (resizing) {
+        resizing = false;
+        panel.style.transition = '';
+        savePanelState(false);
+      }
     });
   }
 

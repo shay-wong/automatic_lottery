@@ -6,6 +6,49 @@ window.WH = window.WH || {};
 
 // 拦截 fetch 请求，捕获 CSRF token 和 farm_state API 响应
 (function () {
+  const buildFarmApiData = (data) => {
+    if (!data || typeof data !== 'object') return null;
+
+    const farmData = {
+      crops: {},
+      plots: data.plots || [],
+      profile: data.profile || {},
+      walletBalance: data.wallet_balance || 0
+    };
+
+    const crops = data.crops;
+    if (crops && Array.isArray(crops)) {
+      crops.forEach(crop => {
+        farmData.crops[crop.key] = {
+          name: crop.name,
+          reward: crop.reward,
+          seedCost: crop.seed_cost,
+          growSeconds: crop.grow_seconds,
+          exp: crop.exp,
+          unlocked: crop.unlocked
+        };
+      });
+    }
+
+    return farmData;
+  };
+
+  const updateFarmApiData = (json) => {
+    const data = json?.data || json;
+    const farmData = buildFarmApiData(data);
+    if (!farmData) return false;
+
+    window._farmApiData = farmData;
+    console.log('[自动农场] 拦截到 API 数据:', window._farmApiData);
+
+    if (window.WH?.FarmModule?.refreshCropsData) {
+      window.WH.FarmModule.refreshCropsData();
+    }
+    if (window.WH?.updateStatsDisplay) window.WH.updateStatsDisplay();
+    if (window.WH?.updateConfigDisplay) window.WH.updateConfigDisplay();
+    return true;
+  };
+
   const originalFetch = window.fetch;
   window.fetch = async function (...args) {
     const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
@@ -45,36 +88,46 @@ window.WH = window.WH || {};
       try {
         const cloned = response.clone();
         const json = await cloned.json();
-        const data = json.data || json;
-
-        // 保存完整的 API 数据
-        window._farmApiData = {
-          crops: {},
-          plots: data.plots || [],
-          profile: data.profile || {},
-          walletBalance: data.wallet_balance || 0
-        };
-
-        // 解析作物数据（包含解锁状态）
-        const crops = data.crops;
-        if (crops && Array.isArray(crops)) {
-          crops.forEach(crop => {
-            window._farmApiData.crops[crop.key] = {
-              name: crop.name,
-              reward: crop.reward,
-              seedCost: crop.seed_cost,
-              growSeconds: crop.grow_seconds,
-              exp: crop.exp,
-              unlocked: crop.unlocked
-            };
-          });
-        }
-        console.log('[自动农场] 拦截到 API 数据:', window._farmApiData);
+        updateFarmApiData(json);
       } catch (e) {
         console.warn('[自动农场] 解析 farm_state 响应失败:', e);
       }
     }
     return response;
+  };
+
+  const originalXHROpen = XMLHttpRequest.prototype.open;
+  const originalXHRSend = XMLHttpRequest.prototype.send;
+  const originalXHRSetRequestHeader = XMLHttpRequest.prototype.setRequestHeader;
+
+  XMLHttpRequest.prototype.open = function (method, url) {
+    this._wh_url = url;
+    return originalXHROpen.apply(this, arguments);
+  };
+
+  XMLHttpRequest.prototype.setRequestHeader = function (name, value) {
+    if (typeof name === 'string' && name.toLowerCase() === 'x-csrf-token' && value) {
+      window._farmCsrfToken = value;
+      console.log('[自动农场] 捕获到 CSRF token:', value.substring(0, 10) + '...');
+    }
+    return originalXHRSetRequestHeader.apply(this, arguments);
+  };
+
+  XMLHttpRequest.prototype.send = function () {
+    this.addEventListener('load', function () {
+      const url = this._wh_url || '';
+      if (typeof url !== 'string' || !url.includes('farm_state')) return;
+
+      try {
+        const payload = this.responseType && this.responseType !== 'text' ? this.response : this.responseText;
+        const json = typeof payload === 'string' ? JSON.parse(payload) : payload;
+        updateFarmApiData(json);
+      } catch (e) {
+        console.warn('[自动农场] 解析 farm_state XHR 响应失败:', e);
+      }
+    });
+
+    return originalXHRSend.apply(this, arguments);
   };
 
   // 主动获取 CSRF token 的函数
@@ -165,6 +218,7 @@ window.WH = window.WH || {};
       seedStrategy: 'profit', // profit/exp/fast/efficiency/exp_efficiency
       minBalance: 0,
       maxPlantCount: 0, // 0 表示不限制
+      seedListExpanded: false,
     },
     config: null,
     isRunning: false,
@@ -177,6 +231,7 @@ window.WH = window.WH || {};
 
     init() {
       this.config = WH.loadConfig(this.configKey, this.defaultConfig);
+      this._seedListExpanded = !!this.config.seedListExpanded;
       // 尝试从页面获取作物数据
       this.refreshCropsData();
     },
@@ -187,6 +242,8 @@ window.WH = window.WH || {};
       if (window._farmApiData?.crops && Object.keys(window._farmApiData.crops).length > 0) {
         this.cropsData = window._farmApiData.crops;
         console.log('[自动农场] 使用拦截到的 API 数据:', this.cropsData);
+        if (window.WH?.updateStatsDisplay) window.WH.updateStatsDisplay();
+        if (window.WH?.updateConfigDisplay) window.WH.updateConfigDisplay();
         return;
       }
 
@@ -204,6 +261,8 @@ window.WH = window.WH || {};
           };
         });
         console.log('[自动农场] 从 window.state 获取作物数据:', this.cropsData);
+        if (window.WH?.updateStatsDisplay) window.WH.updateStatsDisplay();
+        if (window.WH?.updateConfigDisplay) window.WH.updateConfigDisplay();
         return;
       }
 

@@ -12,6 +12,7 @@
 // @require      https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/src/farm.js?v=1.9.13
 // @require      https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/src/cards.js?v=1.9.13
 // @require      https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/src/brick.js?v=1.9.13
+// @run-at       document-start
 // @grant        GM_setValue
 // @grant        GM_getValue
 // ==/UserScript==
