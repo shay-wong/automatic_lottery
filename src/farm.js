@@ -82,6 +82,25 @@ window.WH = window.WH || {};
       return window._farmCsrfToken;
     }
 
+    // 从隐藏 input 获取
+    const input = document.querySelector('input[name="csrf_token"], input[name="_token"]');
+    if (input) {
+      window._farmCsrfToken = input.value;
+      console.log('[自动农场] 从 input 获取 CSRF token');
+      return window._farmCsrfToken;
+    }
+
+    // 从页面 script 中解析
+    const scripts = document.querySelectorAll('script:not([src])');
+    for (const script of scripts) {
+      const match = script.textContent.match(/csrf[_-]?token['":\s]+['"]([a-f0-9]{32,})['"]/i);
+      if (match) {
+        window._farmCsrfToken = match[1];
+        console.log('[自动农场] 从 script 解析 CSRF token');
+        return window._farmCsrfToken;
+      }
+    }
+
     return null;
   };
 
