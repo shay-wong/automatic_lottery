@@ -81,6 +81,9 @@ window.WH = window.WH || {};
   window._getCsrfToken = function() {
     if (window._farmCsrfToken) return window._farmCsrfToken;
 
+    // 打印调试信息
+    console.log('[自动农场] 尝试获取 CSRF token, window.state:', window.state);
+
     // 从 meta 标签获取
     const meta = document.querySelector('meta[name="csrf-token"]');
     if (meta) {
@@ -89,39 +92,56 @@ window.WH = window.WH || {};
       return window._farmCsrfToken;
     }
 
-    // 从 window.csrfToken 获取
-    if (window.csrfToken) {
-      window._farmCsrfToken = window.csrfToken;
-      console.log('[自动农场] 从 window.csrfToken 获取 CSRF token');
-      return window._farmCsrfToken;
+    // 从各种全局变量获取
+    const globalVars = ['csrfToken', 'csrf_token', 'CSRF_TOKEN', '_csrf', 'token'];
+    for (const v of globalVars) {
+      if (window[v]) {
+        window._farmCsrfToken = window[v];
+        console.log(`[自动农场] 从 window.${v} 获取 CSRF token`);
+        return window._farmCsrfToken;
+      }
     }
 
-    // 从 window.state 获取
-    if (window.state?.csrf_token) {
-      window._farmCsrfToken = window.state.csrf_token;
-      console.log('[自动农场] 从 window.state 获取 CSRF token');
-      return window._farmCsrfToken;
+    // 从 window.state 获取（多种可能的属性名）
+    if (window.state) {
+      const stateKeys = ['csrf_token', 'csrfToken', 'csrf', 'token'];
+      for (const k of stateKeys) {
+        if (window.state[k]) {
+          window._farmCsrfToken = window.state[k];
+          console.log(`[自动农场] 从 window.state.${k} 获取 CSRF token`);
+          return window._farmCsrfToken;
+        }
+      }
     }
 
     // 从隐藏 input 获取
-    const input = document.querySelector('input[name="csrf_token"], input[name="_token"]');
+    const input = document.querySelector('input[name="csrf_token"], input[name="_token"], input[name="csrf"]');
     if (input) {
       window._farmCsrfToken = input.value;
       console.log('[自动农场] 从 input 获取 CSRF token');
       return window._farmCsrfToken;
     }
 
-    // 从页面 script 中解析
+    // 从页面 script 中解析（更宽松的正则）
     const scripts = document.querySelectorAll('script:not([src])');
     for (const script of scripts) {
-      const match = script.textContent.match(/csrf[_-]?token['":\s]+['"]([a-f0-9]{32,})['"]/i);
-      if (match) {
-        window._farmCsrfToken = match[1];
-        console.log('[自动农场] 从 script 解析 CSRF token');
-        return window._farmCsrfToken;
+      // 匹配各种格式: csrf_token: "xxx", csrfToken = "xxx", "csrf_token": "xxx" 等
+      const patterns = [
+        /csrf[_-]?token['":\s=]+['"]([a-f0-9]{32,})['"]/i,
+        /['"]csrf[_-]?token['"]\s*:\s*['"]([a-f0-9]{32,})['"]/i,
+        /token['":\s=]+['"]([a-f0-9]{64})['"]/i
+      ];
+      for (const pattern of patterns) {
+        const match = script.textContent.match(pattern);
+        if (match) {
+          window._farmCsrfToken = match[1];
+          console.log('[自动农场] 从 script 解析 CSRF token');
+          return window._farmCsrfToken;
+        }
       }
     }
 
+    console.log('[自动农场] 未能获取 CSRF token');
     return null;
   };
 
