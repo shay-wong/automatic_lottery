@@ -16,19 +16,31 @@ window.WH = window.WH || {};
       try {
         const cloned = response.clone();
         const json = await cloned.json();
-        const crops = json.data?.crops || json.crops;
+        const data = json.data || json;
+
+        // 保存完整的 API 数据
+        window._farmApiData = {
+          crops: {},
+          plots: data.plots || [],
+          profile: data.profile || {},
+          walletBalance: data.wallet_balance || 0
+        };
+
+        // 解析作物数据（包含解锁状态）
+        const crops = data.crops;
         if (crops && Array.isArray(crops)) {
-          window._farmCropsData = {};
           crops.forEach(crop => {
-            window._farmCropsData[crop.key] = {
+            window._farmApiData.crops[crop.key] = {
+              name: crop.name,
               reward: crop.reward,
               seedCost: crop.seed_cost,
               growSeconds: crop.grow_seconds,
-              exp: crop.exp
+              exp: crop.exp,
+              unlocked: crop.unlocked
             };
           });
-          console.log('[自动农场] 拦截到 farm_state API 数据:', window._farmCropsData);
         }
+        console.log('[自动农场] 拦截到 API 数据:', window._farmApiData);
       } catch (e) {
         console.warn('[自动农场] 解析 farm_state 响应失败:', e);
       }
@@ -50,14 +62,13 @@ window.WH = window.WH || {};
       autoPlant: true,
       selectedSeed: null,
       autoSelectBest: true,
-      minBalance: 0, // 最低余额阈值，0 表示不限制
+      seedStrategy: 'profit', // profit/exp/fast/efficiency/exp_efficiency
+      minBalance: 0,
     },
     config: null,
     isRunning: false,
     intervalId: null,
     stats: { harvested: 0, planted: 0, totalProfit: 0 },
-    profitData: {},
-    pendingHarvest: null,
     // API 返回的作物数据缓存
     cropsData: null,
 
@@ -68,14 +79,6 @@ window.WH = window.WH || {};
         if (saved) this.config = { ...this.defaultConfig, ...JSON.parse(saved) };
       } catch (e) {}
 
-      // 初始化收益数据
-      try {
-        const profitSaved = localStorage.getItem('wh_farm_profit');
-        if (profitSaved) {
-          this.profitData = JSON.parse(profitSaved);
-        }
-      } catch (e) {}
-
       // 尝试从页面获取作物数据
       this.refreshCropsData();
     },
@@ -83,8 +86,8 @@ window.WH = window.WH || {};
     // 从 API 获取作物数据
     async refreshCropsData() {
       // 优先使用拦截到的 API 数据
-      if (window._farmCropsData && Object.keys(window._farmCropsData).length > 0) {
-        this.cropsData = window._farmCropsData;
+      if (window._farmApiData?.crops && Object.keys(window._farmApiData.crops).length > 0) {
+        this.cropsData = window._farmApiData.crops;
         console.log('[自动农场] 使用拦截到的 API 数据:', this.cropsData);
         return;
       }
@@ -94,152 +97,56 @@ window.WH = window.WH || {};
         this.cropsData = {};
         window.state.crops.forEach(crop => {
           this.cropsData[crop.key] = {
+            name: crop.name,
             reward: crop.reward,
             seedCost: crop.seed_cost,
             growSeconds: crop.grow_seconds,
-            exp: crop.exp
+            exp: crop.exp,
+            unlocked: crop.unlocked
           };
         });
         console.log('[自动农场] 从 window.state 获取作物数据:', this.cropsData);
         return;
       }
 
-      // 兜底：使用静态数据
-      this.cropsData = {
-        wheat: { reward: 35, seedCost: 33 },
-        carrot: { reward: 60, seedCost: 57 },
-        potato: { reward: 85, seedCost: 78 },
-        strawberry: { reward: 120, seedCost: 112 },
-        tomato: { reward: 65, seedCost: 50 },
-        cabbage: { reward: 80, seedCost: 70 },
-        corn: { reward: 91, seedCost: 60 },
-        onion: { reward: 95, seedCost: 80 },
-        pepper: { reward: 119, seedCost: 100 },
-        pumpkin: { reward: 180, seedCost: 140 },
-        blueberry: { reward: 170, seedCost: 140 },
-        rice: { reward: 150, seedCost: 120 },
-        cotton: { reward: 160, seedCost: 140 }
-      };
-      console.log('[自动农场] 使用静态作物数据');
+      console.log('[自动农场] 等待 API 数据...');
     },
 
-    // 获取作物的基础收益（不含加成）
-    getCropBaseProfit(cropId) {
-      if (this.cropsData && this.cropsData[cropId]) {
-        const data = this.cropsData[cropId];
-        return data.reward - data.seedCost;
-      }
-      return 0;
-    },
-
-    // 获取作物的 ROI
-    getCropROI(cropId) {
-      if (this.cropsData && this.cropsData[cropId]) {
-        const data = this.cropsData[cropId];
-        if (data.seedCost > 0) {
-          return (data.reward - data.seedCost) / data.seedCost;
-        }
-      }
-      return 0;
-    },
-
-    saveConfig() {
-      localStorage.setItem(this.configKey, JSON.stringify(this.config));
-    },
-
-    saveProfitData() {
-      localStorage.setItem('wh_farm_profit', JSON.stringify(this.profitData));
-    },
-
-    getStamina() {
-      // 获取体力，格式如 "0/150"
-      const el = document.getElementById('p-actions');
-      if (el) {
-        const text = el.textContent.trim();
-        const match = text.match(/^(\d+)\s*\/\s*(\d+)$/);
-        if (match) {
-          return {
-            current: parseInt(match[1]),
-            max: parseInt(match[2])
-          };
-        }
-      }
-      return null;
-    },
-
-    parseSeedCost(seed) {
-      if (!seed.element) return 0;
-      const costEl = seed.element.querySelector('.seed-cost');
-      if (costEl) {
-        const text = costEl.textContent.replace(/[^\d.-]/g, '');
-        return Math.abs(parseFloat(text)) || 0;
-      }
-      return 0;
-    },
-
+    // 从 API 数据获取可用种子（已解锁的）
     getAvailableSeeds() {
-      const seedItems = document.querySelectorAll('.seed-item:not(.locked)');
+      if (!this.cropsData) return [];
       const seeds = [];
-      seedItems.forEach(item => {
-        const nameEl = item.querySelector('.seed-name');
-        const costEl = item.querySelector('.seed-cost');
-        const name = nameEl ? nameEl.textContent.trim() : item.getAttribute('title') || '未知';
-        const id = item.getAttribute('data-crop-key');
-        const costText = costEl ? costEl.textContent : '';
-        const cost = Math.abs(parseFloat(costText.replace(/[^\d.-]/g, ''))) || 0;
-        if (id) seeds.push({ id, name, cost, element: item });
-      });
+      for (const [id, data] of Object.entries(this.cropsData)) {
+        if (data.unlocked) {
+          seeds.push({
+            id,
+            name: data.name,
+            cost: data.seedCost
+          });
+        }
+      }
       return seeds;
     },
 
-    getBestSeed(seeds) {
-      if (seeds.length === 0) return null;
-
-      // 如果没有开启智能选种，使用手动选择的种子
-      if (!this.config.autoSelectBest) {
-        if (this.config.selectedSeed) {
-          const found = seeds.find(s => s.id === this.config.selectedSeed);
-          if (found) return found;
-        }
-        return seeds[0];
-      }
-
-      // 检查是否有作物缺少收益数据
-      const needData = seeds.filter(seed => {
-        const data = this.profitData[seed.id];
-        return !data || data.count === 0;
-      });
-
-      if (needData.length > 0) {
-        // 数据收集模式：返回所有需要收集数据的作物
-        console.log(`[自动农场] 数据收集模式: ${needData.length} 种作物需要收集数据:`, needData.map(s => `${s.name}(${s.id})`).join(', '));
-        return { seeds: needData, isDataCollection: true };
-      }
-
-      // 所有作物都有数据，计算最优 ROI
-      let bestSeed = null;
-      let bestROI = -Infinity;
-
-      seeds.forEach(seed => {
-        const data = this.profitData[seed.id];
-        if (data && data.count > 0) {
-          const avgProfit = data.totalProfit / data.count;
-          const roi = seed.cost > 0 ? (avgProfit - seed.cost) / seed.cost : avgProfit;
-          if (roi > bestROI) {
-            bestROI = roi;
-            bestSeed = seed;
-          }
-        }
-      });
-
-      if (bestSeed) {
-        console.log(`[自动农场] 智能选种: ${bestSeed.name} (ROI: ${(bestROI * 100).toFixed(1)}%)`);
-      }
-
-      return bestSeed || seeds[0];
-    },
-
+    // 从 API 数据获取农场状态
     getFarmStatus() {
+      const apiData = window._farmApiData;
+      if (apiData?.plots) {
+        let empty = 0, growing = 0, ready = 0;
+        const readyCrops = {};
+        apiData.plots.forEach(plot => {
+          if (plot.state === 'empty') empty++;
+          else if (plot.state === 'ready') {
+            ready++;
+            const cropName = plot.crop?.name || plot.crop_key;
+            if (cropName) readyCrops[cropName] = (readyCrops[cropName] || 0) + 1;
+          }
+          else if (plot.state === 'growing') growing++;
+        });
+        return { empty, growing, ready, total: apiData.plots.length, readyCrops, plots: apiData.plots };
+      }
+
+      // 降级到 DOM 读取
       const tiles = document.querySelectorAll('.tile');
       let empty = 0, growing = 0, ready = 0;
       const readyCrops = {};
@@ -258,6 +165,129 @@ window.WH = window.WH || {};
       return { empty, growing, ready, total: tiles.length, readyCrops };
     },
 
+    // 从 API 数据获取体力
+    getStamina() {
+      const apiData = window._farmApiData;
+      if (apiData?.profile) {
+        return {
+          current: apiData.profile.daily_actions_cap - apiData.profile.daily_actions_used,
+          max: apiData.profile.daily_actions_cap,
+          used: apiData.profile.daily_actions_used
+        };
+      }
+
+      // 降级到 DOM 读取
+      const el = document.getElementById('p-actions');
+      if (el) {
+        const text = el.textContent.trim();
+        const match = text.match(/^(\d+)\s*\/\s*(\d+)$/);
+        if (match) {
+          return {
+            current: parseInt(match[1]),
+            max: parseInt(match[2])
+          };
+        }
+      }
+      return null;
+    },
+
+    // 从 API 数据获取余额
+    getWalletBalance() {
+      const apiData = window._farmApiData;
+      if (apiData?.walletBalance !== undefined) {
+        return apiData.walletBalance;
+      }
+      // 降级到全局方法
+      return WH.getWalletBalance?.() || 0;
+    },
+
+    // 获取作物的基础收益（不含加成）
+    getCropBaseProfit(cropId) {
+      if (this.cropsData && this.cropsData[cropId]) {
+        const data = this.cropsData[cropId];
+        return data.reward - data.seedCost;
+      }
+      return 0;
+    },
+
+    // 获取作物每点体力的收益（种植+收割各消耗1点体力）
+    getCropProfitPerStamina(cropId) {
+      if (this.cropsData && this.cropsData[cropId]) {
+        const data = this.cropsData[cropId];
+        const profit = data.reward - data.seedCost;
+        // 每块地消耗2点体力：种植1点 + 收割1点
+        return profit / 2;
+      }
+      return 0;
+    },
+
+    saveConfig() {
+      localStorage.setItem(this.configKey, JSON.stringify(this.config));
+    },
+
+    getBestSeed(seeds) {
+      if (seeds.length === 0) return null;
+
+      // 如果没有开启智能选种，使用手动选择的种子
+      if (!this.config.autoSelectBest) {
+        if (this.config.selectedSeed) {
+          const found = seeds.find(s => s.id === this.config.selectedSeed);
+          if (found) return found;
+        }
+        return seeds[0];
+      }
+
+      // 使用 API 数据根据策略选择最优种子
+      let bestSeed = null;
+      let bestValue = -Infinity;
+      const strategy = this.config.seedStrategy || 'profit';
+
+      seeds.forEach(seed => {
+        const data = this.cropsData?.[seed.id];
+        if (!data) return;
+
+        let value = 0;
+        const growMinutes = (data.growSeconds || 1) / 60;
+        const profit = data.reward - data.seedCost;
+
+        switch (strategy) {
+          case 'profit': // 每点体力净收益最高
+            value = profit / 2;
+            break;
+          case 'exp': // 每点体力经验最多
+            value = (data.exp || 0) / 2;
+            break;
+          case 'fast': // 生长时间最短（用负数，这样最小的排最前）
+            value = -(data.growSeconds || Infinity);
+            break;
+          case 'efficiency': // 每分钟收益（时间效率）
+            value = profit / growMinutes;
+            break;
+          case 'exp_efficiency': // 每分钟经验（时间效率）
+            value = (data.exp || 0) / growMinutes;
+            break;
+        }
+
+        if (value > bestValue) {
+          bestValue = value;
+          bestSeed = seed;
+        }
+      });
+
+      if (bestSeed) {
+        const strategyNames = {
+          profit: '体力收益',
+          exp: '体力经验',
+          fast: '速度',
+          efficiency: '时间收益',
+          exp_efficiency: '时间经验'
+        };
+        console.log(`[自动农场] 智能选种(${strategyNames[strategy]}): ${bestSeed.name}`);
+      }
+
+      return bestSeed || seeds[0];
+    },
+
     async harvest() {
       if (!this.config.autoHarvest) return 0;
       const status = this.getFarmStatus();
@@ -267,7 +297,7 @@ window.WH = window.WH || {};
 
       // 如果是单一作物，可以一键收割
       if (cropNames.length === 1) {
-        const balanceBefore = WH.getWalletBalance();
+        const balanceBefore = this.getWalletBalance();
 
         const harvestAllBtn = document.querySelector('#btn-harvest-all');
         if (harvestAllBtn && !harvestAllBtn.disabled) {
@@ -338,35 +368,13 @@ window.WH = window.WH || {};
     },
 
     recordSingleCropProfit(balanceBefore, cropName, count) {
-      const balanceAfter = WH.getWalletBalance();
+      const balanceAfter = this.getWalletBalance();
       const profit = balanceAfter - balanceBefore;
 
-      console.log(`[自动农场] 收益计算: ${cropName}`);
-      console.log(`  收割前余额: ${balanceBefore}`);
-      console.log(`  收割后余额: ${balanceAfter}`);
-      console.log(`  收益: ${balanceAfter} - ${balanceBefore} = ${profit}`);
-      console.log(`  数量: ${count}`);
-      console.log(`  每块: ${profit} / ${count} = ${profit / count}`);
+      console.log(`[自动农场] 收益计算: ${cropName}, 收益: ${profit}, 数量: ${count}`);
 
       if (profit > 0 && count > 0) {
         this.stats.totalProfit += profit;
-        const profitPerCrop = profit / count;
-
-        const seeds = this.getAvailableSeeds();
-        const seed = seeds.find(s => s.name === cropName);
-        if (seed) {
-          if (!this.profitData[seed.id]) {
-            this.profitData[seed.id] = { totalProfit: 0, totalCost: 0, count: 0 };
-          }
-          const oldData = { ...this.profitData[seed.id] };
-          this.profitData[seed.id].totalProfit += profit;
-          this.profitData[seed.id].count += count;
-          this.saveProfitData();
-          console.log(`  累计数据: totalProfit ${oldData.totalProfit} -> ${this.profitData[seed.id].totalProfit}, count ${oldData.count} -> ${this.profitData[seed.id].count}`);
-          console.log(`  平均收益: ${this.profitData[seed.id].totalProfit} / ${this.profitData[seed.id].count} = ${this.profitData[seed.id].totalProfit / this.profitData[seed.id].count}`);
-        }
-      } else {
-        console.log(`  跳过记录: profit=${profit}, count=${count}`);
       }
     },
 
@@ -378,113 +386,23 @@ window.WH = window.WH || {};
       const seeds = this.getAvailableSeeds();
       if (seeds.length === 0) return 0;
 
-      const result = this.getBestSeed(seeds);
-      if (!result) return 0;
+      const seed = this.getBestSeed(seeds);
+      if (!seed) return 0;
 
-      // 判断是否是数据收集模式
-      const isDataCollection = result.isDataCollection === true;
-      console.log(`[自动农场] plant() isDataCollection=${isDataCollection}, result=`, result);
-
-      if (isDataCollection) {
-        // 数据收集模式：每种缺少数据的作物各种1块
-        return await this.plantForDataCollection(result.seeds, status.empty);
-      } else {
-        // 正常模式：种满所有空地
-        return await this.plantSingleSeed(result, status.empty);
-      }
-    },
-
-    async plantForDataCollection(seedsNeedData, emptyCount) {
-      const emptyTiles = Array.from(document.querySelectorAll('.tile.empty'));
-      let totalPlanted = 0;
-
-      console.log(`[自动农场] 数据收集开始: 空地=${emptyTiles.length}, 需要数据的作物=${seedsNeedData.length}`);
-
-      // 每种作物种1块，最多种到空地数量
-      const toPlant = seedsNeedData.slice(0, Math.min(emptyCount, emptyTiles.length));
-      console.log(`[自动农场] 计划种植: ${toPlant.map(s => s.name).join(', ')}`);
-
-      for (let i = 0; i < toPlant.length; i++) {
-        const seed = toPlant[i];
-        const tile = emptyTiles[i];
-        if (!tile) {
-          console.log(`[自动农场] 第 ${i} 块空地不存在，跳过`);
-          break;
-        }
-
-        // 检查余额
-        const currentBalance = WH.getWalletBalance();
-        if (currentBalance < this.config.minBalance + seed.cost) {
-          console.log(`[自动农场] 余额不足，跳过 ${seed.name}`);
-          continue;
-        }
-
-        const plotIndex = tile.dataset.plotIndex;
-        if (plotIndex === undefined) {
-          console.log(`[自动农场] plotIndex 不存在，跳过`);
-          continue;
-        }
-
-        // 记录成本
-        if (!this.profitData[seed.id]) {
-          this.profitData[seed.id] = { totalProfit: 0, totalCost: 0, count: 0 };
-        }
-        this.profitData[seed.id].totalCost += seed.cost;
-        this.saveProfitData();
-
-        // 种植
-        if (typeof window.doAction === 'function') {
-          try {
-            console.log(`[自动农场] 调用 doAction('plant_many', { crop_key: '${seed.id}', plot_indices: '[${plotIndex}]' })`);
-            await window.doAction('plant_many', {
-              crop_key: seed.id,
-              plot_indices: JSON.stringify([parseInt(plotIndex)])
-            });
-            totalPlanted++;
-            console.log(`[自动农场] 数据收集: 种植 ${seed.name} 在位置 ${plotIndex} 成功`);
-          } catch (e) {
-            console.error(`[自动农场] 种植 ${seed.name} 失败:`, e);
-          }
-        } else {
-          // 手动点击种植模式
-          console.log(`[自动农场] 使用手动点击种植 ${seed.name}`);
-
-          if (seed.element) {
-            seed.element.click();
-            await new Promise(r => setTimeout(r, 500));
-          }
-          tile.click();
-          totalPlanted++;
-          await new Promise(r => setTimeout(r, 300));
-        }
-      }
-
-      this.stats.planted += totalPlanted;
-      if (totalPlanted > 0) {
-        WH.showToast(`数据收集: 种植了 ${totalPlanted} 种作物`);
-      }
-      return totalPlanted;
+      return await this.plantSingleSeed(seed, status.empty);
     },
 
     async plantSingleSeed(seed, emptyCount) {
       const totalCost = seed.cost * emptyCount;
 
       // 检查余额是否足够
-      const currentBalance = WH.getWalletBalance();
+      const currentBalance = this.getWalletBalance();
       const minRequired = this.config.minBalance + totalCost;
       if (currentBalance < minRequired) {
         WH.showToast(`余额不足，需要 ${minRequired.toFixed(0)}，当前 ${currentBalance.toFixed(0)}`);
         WH.stop('余额不足，已停止');
         return 0;
       }
-
-      // 记录成本
-      if (this.profitData[seed.id]) {
-        this.profitData[seed.id].totalCost += totalCost;
-      } else {
-        this.profitData[seed.id] = { totalProfit: 0, totalCost: totalCost, count: 0 };
-      }
-      this.saveProfitData();
 
       const emptyTiles = document.querySelectorAll('.tile.empty');
       const plotIndices = [];
@@ -615,11 +533,20 @@ window.WH = window.WH || {};
         seedName = found?.name || '自动最优';
       }
       const minBalText = this.config.minBalance > 0 ? `${this.config.minBalance}` : '不限';
+      const strategyNames = {
+        profit: '体力收益优先',
+        exp: '体力经验优先',
+        fast: '速度优先',
+        efficiency: '时间收益优先',
+        exp_efficiency: '时间经验优先'
+      };
+      const strategyText = strategyNames[this.config.seedStrategy] || '体力收益优先';
       return `
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">检查间隔</span><span class="${PREFIX}-val">${this.config.interval / 1000}秒</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">自动收割</span><span class="${PREFIX}-val">${this.config.autoHarvest ? '开' : '关'}</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">自动种植</span><span class="${PREFIX}-val">${this.config.autoPlant ? '开' : '关'}</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">智能选种</span><span class="${PREFIX}-val">${this.config.autoSelectBest ? '开' : '关'}</span></div>
+        <div class="${PREFIX}-row"><span class="${PREFIX}-label">选种策略</span><span class="${PREFIX}-val">${strategyText}</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">种子</span><span class="${PREFIX}-val">${seedName}</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">最低余额</span><span class="${PREFIX}-val">${minBalText}</span></div>
       `;
@@ -629,29 +556,91 @@ window.WH = window.WH || {};
       const seeds = this.getAvailableSeeds();
       const stamina = this.getStamina();
       const staminaText = stamina ? `${stamina.current}/${stamina.max}` : '-';
+      const strategy = this.config.seedStrategy || 'profit';
 
-      // 基于 API 数据计算 ROI 排名
-      let roiListHtml = '';
+      // 基于 API 数据构建种子信息表
+      let seedTableHtml = '';
       if (this.cropsData && Object.keys(this.cropsData).length > 0) {
-        const roiList = [];
+        const seedList = [];
         seeds.forEach(seed => {
           const data = this.cropsData[seed.id];
           if (data && data.seedCost > 0) {
-            const roi = (data.reward - data.seedCost) / data.seedCost;
-            roiList.push({ name: seed.name, roi, profit: data.reward - data.seedCost });
+            const profit = data.reward - data.seedCost;
+            const growMinutes = (data.growSeconds || 0) / 60;
+            const profitPerStamina = profit / 2;
+            const expPerStamina = (data.exp || 0) / 2;
+            const profitPerMin = growMinutes > 0 ? profit / growMinutes : 0;
+            const expPerMin = growMinutes > 0 ? (data.exp || 0) / growMinutes : 0;
+
+            seedList.push({
+              name: seed.name,
+              reward: data.reward,
+              cost: data.seedCost,
+              profit,
+              growMinutes: Math.round(growMinutes),
+              exp: data.exp || 0,
+              profitPerStamina,
+              expPerStamina,
+              profitPerMin,
+              expPerMin
+            });
           }
         });
-        roiList.sort((a, b) => b.roi - a.roi);
 
-        if (roiList.length > 0) {
-          roiListHtml = `<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.1);">`;
-          roiListHtml += `<div class="${PREFIX}-row"><span class="${PREFIX}-label" style="font-weight:bold;">基础ROI</span><span class="${PREFIX}-val" style="font-size:10px;opacity:0.7;">净利/ROI</span></div>`;
-          roiList.forEach((crop, index) => {
+        // 根据策略排序
+        switch (strategy) {
+          case 'profit':
+            seedList.sort((a, b) => b.profitPerStamina - a.profitPerStamina);
+            break;
+          case 'exp':
+            seedList.sort((a, b) => b.expPerStamina - a.expPerStamina);
+            break;
+          case 'fast':
+            seedList.sort((a, b) => a.growMinutes - b.growMinutes);
+            break;
+          case 'efficiency':
+            seedList.sort((a, b) => b.profitPerMin - a.profitPerMin);
+            break;
+          case 'exp_efficiency':
+            seedList.sort((a, b) => b.expPerMin - a.expPerMin);
+            break;
+        }
+
+        if (seedList.length > 0) {
+          const strategyNames = {
+            profit: '体力收益优先',
+            exp: '体力经验优先',
+            fast: '速度优先',
+            efficiency: '时间收益优先',
+            exp_efficiency: '时间经验优先'
+          };
+
+          seedTableHtml = `<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.1);">`;
+          seedTableHtml += `<div class="${PREFIX}-row"><span class="${PREFIX}-label" style="font-weight:bold;">种子排名</span><span class="${PREFIX}-val" style="font-size:10px;opacity:0.7;">${strategyNames[strategy] || '收益优先'}</span></div>`;
+
+          // 表头
+          seedTableHtml += `<div style="display:flex;font-size:10px;opacity:0.6;margin:4px 0;padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.1);">
+            <span style="flex:2;">名称</span>
+            <span style="flex:1;text-align:right;">奖励</span>
+            <span style="flex:1;text-align:right;">成本</span>
+            <span style="flex:1;text-align:right;">收益</span>
+            <span style="flex:1;text-align:right;">时间</span>
+            <span style="flex:1;text-align:right;">经验</span>
+          </div>`;
+
+          seedList.forEach((crop, index) => {
             const isBest = index === 0;
-            const style = isBest ? 'color:#30d158;' : '';
-            roiListHtml += `<div class="${PREFIX}-row"><span class="${PREFIX}-label" style="${style}">${crop.name}</span><span class="${PREFIX}-val" style="font-size:11px;${style}">${crop.profit} (${(crop.roi * 100).toFixed(0)}%)</span></div>`;
+            const style = isBest ? 'color:#30d158;font-weight:bold;' : '';
+            seedTableHtml += `<div style="display:flex;font-size:11px;${style}padding:2px 0;">
+              <span style="flex:2;overflow:hidden;text-overflow:ellipsis;">${crop.name}</span>
+              <span style="flex:1;text-align:right;">${crop.reward}</span>
+              <span style="flex:1;text-align:right;">${crop.cost}</span>
+              <span style="flex:1;text-align:right;">${crop.profit}</span>
+              <span style="flex:1;text-align:right;">${crop.growMinutes}分</span>
+              <span style="flex:1;text-align:right;">${crop.exp}</span>
+            </div>`;
           });
-          roiListHtml += `</div>`;
+          seedTableHtml += `</div>`;
         }
       }
 
@@ -660,7 +649,7 @@ window.WH = window.WH || {};
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">已收割</span><span class="${PREFIX}-val">${this.stats.harvested}</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">已种植</span><span class="${PREFIX}-val">${this.stats.planted}</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">总收益</span><span class="${PREFIX}-val">${this.stats.totalProfit.toFixed(1)}</span></div>
-        ${roiListHtml}
+        ${seedTableHtml}
       `;
     },
 
@@ -694,17 +683,21 @@ window.WH = window.WH || {};
             <label>智能选种</label>
             <div class="${PREFIX}-toggle ${this.config.autoSelectBest ? 'active' : ''}" id="tog-smart"></div>
           </div>
+          <div class="${PREFIX}-input-row">
+            <label>选种策略</label>
+            <select id="sel-strategy">
+              <option value="profit" ${this.config.seedStrategy === 'profit' ? 'selected' : ''}>体力收益优先</option>
+              <option value="exp" ${this.config.seedStrategy === 'exp' ? 'selected' : ''}>体力经验优先</option>
+              <option value="fast" ${this.config.seedStrategy === 'fast' ? 'selected' : ''}>速度优先</option>
+              <option value="efficiency" ${this.config.seedStrategy === 'efficiency' ? 'selected' : ''}>时间收益优先</option>
+              <option value="exp_efficiency" ${this.config.seedStrategy === 'exp_efficiency' ? 'selected' : ''}>时间经验优先</option>
+            </select>
+          </div>
         </div>
         <div class="${PREFIX}-input-group">
           <div class="${PREFIX}-input-row">
             <label>默认/备选种子</label>
             <select id="sel-seed"><option value="">自动</option>${seedOptions}</select>
-          </div>
-        </div>
-        <div class="${PREFIX}-input-group">
-          <div class="${PREFIX}-input-row">
-            <label>清空收益数据</label>
-            <button id="btn-clear-profit" style="background:#ff453a;color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;">清空</button>
           </div>
         </div>
       `, () => {
@@ -713,6 +706,7 @@ window.WH = window.WH || {};
         this.config.autoHarvest = document.getElementById('tog-harvest').classList.contains('active');
         this.config.autoPlant = document.getElementById('tog-plant').classList.contains('active');
         this.config.autoSelectBest = document.getElementById('tog-smart').classList.contains('active');
+        this.config.seedStrategy = document.getElementById('sel-strategy').value || 'profit';
         this.config.selectedSeed = document.getElementById('sel-seed').value || null;
         this.saveConfig();
         if (this.isRunning) {
@@ -724,13 +718,6 @@ window.WH = window.WH || {};
       document.getElementById('tog-harvest').onclick = (e) => e.target.classList.toggle('active');
       document.getElementById('tog-plant').onclick = (e) => e.target.classList.toggle('active');
       document.getElementById('tog-smart').onclick = (e) => e.target.classList.toggle('active');
-      document.getElementById('btn-clear-profit').onclick = () => {
-        this.profitData = {};
-        this.stats.totalProfit = 0;
-        this.saveProfitData();
-        WH.showToast('收益数据已清空');
-        WH.updateStatsDisplay();
-      };
     }
   };
 
