@@ -106,6 +106,36 @@ window.WH = window.WH || {};
       #${PREFIX}-panel.minimized { width: auto; min-width: fit-content; }
       #${PREFIX}-panel.minimized .${PREFIX}-header { white-space: nowrap; }
 
+      /* Resize handles */
+      .${PREFIX}-resize-handle {
+        position: absolute; z-index: 10;
+      }
+      .${PREFIX}-resize-e {
+        right: 0; top: 18px; bottom: 0; width: 6px; cursor: ew-resize;
+      }
+      .${PREFIX}-resize-s {
+        bottom: 0; left: 18px; right: 0; height: 6px; cursor: ns-resize;
+      }
+      .${PREFIX}-resize-se {
+        right: 0; bottom: 0; width: 18px; height: 18px; cursor: nwse-resize;
+      }
+      .${PREFIX}-resize-w {
+        left: 0; top: 18px; bottom: 0; width: 6px; cursor: ew-resize;
+      }
+      .${PREFIX}-resize-n {
+        top: 0; left: 18px; right: 0; height: 6px; cursor: ns-resize;
+      }
+      .${PREFIX}-resize-nw {
+        left: 0; top: 0; width: 18px; height: 18px; cursor: nwse-resize;
+      }
+      .${PREFIX}-resize-ne {
+        right: 0; top: 0; width: 18px; height: 18px; cursor: nesw-resize;
+      }
+      .${PREFIX}-resize-sw {
+        left: 0; bottom: 0; width: 18px; height: 18px; cursor: nesw-resize;
+      }
+      #${PREFIX}-panel.minimized .${PREFIX}-resize-handle { display: none; }
+
       #${PREFIX}-settings {
         position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
         z-index: 1000000; display: flex; justify-content: center; align-items: center;
@@ -286,6 +316,14 @@ window.WH = window.WH || {};
         <button id="${PREFIX}-setting" class="${PREFIX}-btn">设置</button>
         <div class="${PREFIX}-status"><span class="${PREFIX}-dot"></span><span id="${PREFIX}-status">准备就绪</span></div>
       </div>
+      <div class="${PREFIX}-resize-handle ${PREFIX}-resize-e" data-resize="e"></div>
+      <div class="${PREFIX}-resize-handle ${PREFIX}-resize-s" data-resize="s"></div>
+      <div class="${PREFIX}-resize-handle ${PREFIX}-resize-se" data-resize="se"></div>
+      <div class="${PREFIX}-resize-handle ${PREFIX}-resize-w" data-resize="w"></div>
+      <div class="${PREFIX}-resize-handle ${PREFIX}-resize-n" data-resize="n"></div>
+      <div class="${PREFIX}-resize-handle ${PREFIX}-resize-nw" data-resize="nw"></div>
+      <div class="${PREFIX}-resize-handle ${PREFIX}-resize-ne" data-resize="ne"></div>
+      <div class="${PREFIX}-resize-handle ${PREFIX}-resize-sw" data-resize="sw"></div>
     `;
     document.body.appendChild(panel);
 
@@ -323,6 +361,65 @@ window.WH = window.WH || {};
     });
     window.addEventListener('mouseup', () => {
       if (dragging) { dragging = false; panel.style.transition = ''; }
+    });
+
+    // 边缘拖拽调整大小
+    let resizing = false, resizeDir = '', startX, startY, startW, startH, startLeft, startTop;
+    const MIN_WIDTH = 180, MIN_HEIGHT = 200;
+
+    panel.querySelectorAll(`.${PREFIX}-resize-handle`).forEach(handle => {
+      handle.addEventListener('mousedown', (e) => {
+        resizing = true;
+        resizeDir = handle.dataset.resize;
+        startX = e.clientX;
+        startY = e.clientY;
+        const rect = panel.getBoundingClientRect();
+        startW = rect.width;
+        startH = rect.height;
+        startLeft = rect.left;
+        startTop = rect.top;
+        panel.style.transition = 'none';
+        e.preventDefault();
+        e.stopPropagation();
+      });
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!resizing) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+
+      let newW = startW, newH = startH, newLeft = startLeft, newTop = startTop;
+
+      // 水平方向
+      if (resizeDir.includes('e')) {
+        newW = Math.max(MIN_WIDTH, startW + dx);
+      }
+      if (resizeDir.includes('w')) {
+        const w = Math.max(MIN_WIDTH, startW - dx);
+        newLeft = startLeft + (startW - w);
+        newW = w;
+      }
+
+      // 垂直方向
+      if (resizeDir.includes('s')) {
+        newH = Math.max(MIN_HEIGHT, startH + dy);
+      }
+      if (resizeDir.includes('n')) {
+        const h = Math.max(MIN_HEIGHT, startH - dy);
+        newTop = startTop + (startH - h);
+        newH = h;
+      }
+
+      panel.style.width = newW + 'px';
+      panel.style.height = newH + 'px';
+      panel.style.left = newLeft + 'px';
+      panel.style.top = newTop + 'px';
+      panel.style.right = 'auto';
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (resizing) { resizing = false; panel.style.transition = ''; }
     });
   }
 

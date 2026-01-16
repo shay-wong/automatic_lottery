@@ -4,10 +4,18 @@
 
 window.WH = window.WH || {};
 
-// 拦截 fetch 请求，捕获 farm_state API 响应
+// 拦截 fetch 请求，捕获 CSRF token 和 farm_state API 响应
 (function () {
   const originalFetch = window.fetch;
   window.fetch = async function (...args) {
+    // 捕获请求中的 CSRF token
+    const options = args[1] || {};
+    const headers = options.headers || {};
+    if (headers['x-csrf-token']) {
+      window._farmCsrfToken = headers['x-csrf-token'];
+      console.log('[自动农场] 捕获到 CSRF token');
+    }
+
     const response = await originalFetch.apply(this, args);
     const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
 
@@ -47,6 +55,17 @@ window.WH = window.WH || {};
     }
     return response;
   };
+
+  // 尝试从页面 meta 标签获取 CSRF token
+  setTimeout(() => {
+    if (!window._farmCsrfToken) {
+      const meta = document.querySelector('meta[name="csrf-token"]');
+      if (meta) {
+        window._farmCsrfToken = meta.getAttribute('content');
+        console.log('[自动农场] 从 meta 标签获取 CSRF token');
+      }
+    }
+  }, 1000);
 })();
 
 (function () {
@@ -292,6 +311,107 @@ window.WH = window.WH || {};
 
     async harvest() {
       if (!this.config.autoHarvest) return 0;
+
+      // 从 API 数据获取可收割的地块数量
+      const apiData = window._farmApiData;
+      let readyCount = 0;
+      if (apiData?.plots) {
+        apiData.plots.forEach(plot => {
+          if (plot.state === 'ready') readyCount++;
+        });
+      }
+
+      if (readyCount === 0) {
+        // 降级到 DOM 检测
+        const status = this.getFarmStatus();
+        if (status.ready === 0) return 0;
+        readyCount = status.ready;
+      }
+
+      console.log(`[自动农场] 准备收割 ${readyCount} 块作物`);
+
+      // 优先使用 harvest_all API 一次性收割
+      const csrfToken = window._farmCsrfToken;
+      if (csrfToken) {
+        try {
+          const result = await this.callHarvestAllApi(csrfToken);
+          if (result.success) {
+            const harvested = result.harvestedCount || readyCount;
+            const reward = result.totalReward || 0;
+            this.stats.harvested += harvested;
+            this.stats.totalProfit += reward;
+            WH.showToast(`收割了 ${harvested} 块，收益 ${reward}`);
+            console.log(`[自动农场] 批量收割成功: ${harvested} 块，收益 ${reward}`);
+            return harvested;
+          }
+          console.error('[自动农场] harvest_all 失败:', result.error);
+        } catch (e) {
+          console.error('[自动农场] harvest_all 异常:', e);
+        }
+      }
+
+      // 降级到旧方法
+      return await this.harvestByDom();
+    },
+
+    // 批量收割 API
+    async callHarvestAllApi(csrfToken) {
+      const formData = new FormData();
+      formData.append('action', 'harvest_all');
+
+      const response = await fetch('/api/farm_action.php', {
+        method: 'POST',
+        headers: {
+          'x-csrf-token': csrfToken
+        },
+        body: formData
+      });
+
+      const data = await response.json();
+      if (data.success || data.status === 'success') {
+        // 刷新本地缓存
+        if (data.data?.state) {
+          this.updateLocalCache(data.data.state);
+        }
+        const result = data.data?.result || {};
+        return {
+          success: true,
+          harvestedCount: result.harvested_count || 0,
+          totalReward: result.total_reward || 0,
+          data
+        };
+      }
+      return { success: false, error: data.message || data.error || 'Unknown error' };
+    },
+
+    // 单个收割 API（备用）
+    async callHarvestApi(plotIndex, csrfToken) {
+      const formData = new FormData();
+      formData.append('action', 'harvest');
+      formData.append('plot_index', plotIndex.toString());
+
+      const response = await fetch('/api/farm_action.php', {
+        method: 'POST',
+        headers: {
+          'x-csrf-token': csrfToken
+        },
+        body: formData
+      });
+
+      const data = await response.json();
+      if (data.success || data.status === 'success') {
+        // 刷新本地缓存
+        if (data.data?.state) {
+          this.updateLocalCache(data.data.state);
+        }
+        const reward = data.data?.result?.reward || 0;
+        return { success: true, reward, data };
+      }
+      return { success: false, error: data.message || data.error || 'Unknown error' };
+    },
+
+    // 降级的 DOM 收割方法
+    async harvestByDom() {
       const status = this.getFarmStatus();
       if (status.ready === 0) return 0;
 
@@ -339,16 +459,13 @@ window.WH = window.WH || {};
 
         if (tiles.length === 0) continue;
 
-        // 快速连续点击收割这种作物的所有地块
         for (const tile of tiles) {
           tile.click();
           totalCount++;
         }
 
-        // 等待收割完成
         await new Promise(r => setTimeout(r, 800));
 
-        // 使用 API 数据计算收益
         const seeds = this.getAvailableSeeds();
         const seed = seeds.find(s => s.name === cropName);
         if (seed) {
@@ -356,11 +473,9 @@ window.WH = window.WH || {};
           if (baseProfit > 0) {
             const profit = baseProfit * tiles.length;
             this.stats.totalProfit += profit;
-            console.log(`[自动农场] 收割 ${tiles.length} 块 ${cropName}，收益 ${profit}`);
           }
         }
 
-        // 短暂等待再处理下一种作物
         await new Promise(r => setTimeout(r, 200));
       }
 
@@ -406,15 +521,50 @@ window.WH = window.WH || {};
         return 0;
       }
 
-      const emptyTiles = document.querySelectorAll('.tile.empty');
-      const plotIndices = [];
-      emptyTiles.forEach(tile => {
-        const index = tile.dataset.plotIndex;
-        if (index !== undefined) plotIndices.push(parseInt(index));
-      });
+      // 从 API 数据获取空地索引
+      const apiData = window._farmApiData;
+      let plotIndices = [];
+      if (apiData?.plots) {
+        apiData.plots.forEach((plot, index) => {
+          if (plot.state === 'empty') {
+            plotIndices.push(index);
+          }
+        });
+      }
 
-      if (plotIndices.length === 0) return 0;
+      // 降级到 DOM 获取
+      if (plotIndices.length === 0) {
+        const emptyTiles = document.querySelectorAll('.tile.empty');
+        emptyTiles.forEach(tile => {
+          const index = tile.dataset.plotIndex;
+          if (index !== undefined) plotIndices.push(parseInt(index));
+        });
+      }
 
+      if (plotIndices.length === 0) {
+        console.log('[自动农场] 没有找到空地');
+        return 0;
+      }
+
+      console.log(`[自动农场] 准备种植 ${seed.name}，空地索引:`, plotIndices);
+
+      // 优先使用 fetch API 直接调用
+      const csrfToken = window._farmCsrfToken;
+      if (csrfToken) {
+        try {
+          const result = await this.callPlantApi(seed.id, plotIndices, csrfToken);
+          if (result.success) {
+            this.stats.planted += plotIndices.length;
+            WH.showToast(`种植了 ${plotIndices.length} 块 ${seed.name}`);
+            return plotIndices.length;
+          }
+          console.error('[自动农场] API 种植失败:', result.error);
+        } catch (e) {
+          console.error('[自动农场] fetch 种植失败:', e);
+        }
+      }
+
+      // 降级到 window.doAction
       if (typeof window.doAction === 'function') {
         try {
           await window.doAction('plant_many', {
@@ -425,23 +575,68 @@ window.WH = window.WH || {};
           WH.showToast(`种植了 ${plotIndices.length} 块 ${seed.name}`);
           return plotIndices.length;
         } catch (e) {
-          console.error('[自动农场] plant_many 失败:', e);
+          console.error('[自动农场] doAction 种植失败:', e);
         }
       }
 
-      let count = 0;
-      if (seed.element) {
-        seed.element.click();
-        await new Promise(r => setTimeout(r, 200));
+      console.error('[自动农场] 所有种植方式都失败了');
+      return 0;
+    },
+
+    // 直接调用种植 API
+    async callPlantApi(cropKey, plotIndices, csrfToken) {
+      const formData = new FormData();
+      formData.append('action', 'plant_many');
+      formData.append('crop_key', cropKey);
+      formData.append('plot_indices', JSON.stringify(plotIndices));
+
+      const response = await fetch('/api/farm_action.php', {
+        method: 'POST',
+        headers: {
+          'x-csrf-token': csrfToken
+        },
+        body: formData
+      });
+
+      const data = await response.json();
+      if (data.success || data.status === 'success') {
+        // 刷新本地缓存
+        if (data.data?.state) {
+          this.updateLocalCache(data.data.state);
+        }
+        return { success: true, data };
       }
-      for (const tile of emptyTiles) {
-        tile.click();
-        count++;
-        await new Promise(r => setTimeout(r, 100));
+      return { success: false, error: data.message || data.error || 'Unknown error' };
+    },
+
+    // 更新本地缓存
+    updateLocalCache(state) {
+      if (!state) return;
+
+      // 更新 window._farmApiData
+      window._farmApiData = {
+        crops: window._farmApiData?.crops || {},
+        plots: state.plots || [],
+        profile: state.profile || {},
+        walletBalance: state.wallet_balance || 0
+      };
+
+      // 更新作物数据
+      if (state.crops && Array.isArray(state.crops)) {
+        state.crops.forEach(crop => {
+          window._farmApiData.crops[crop.key] = {
+            name: crop.name,
+            reward: crop.reward,
+            seedCost: crop.seed_cost,
+            growSeconds: crop.grow_seconds,
+            exp: crop.exp,
+            unlocked: crop.unlocked
+          };
+        });
+        this.cropsData = window._farmApiData.crops;
       }
-      this.stats.planted += count;
-      if (count > 0) WH.showToast(`种植了 ${count} 块 ${seed.name}`);
-      return count;
+
+      console.log('[自动农场] 本地缓存已刷新');
     },
 
     parseCountdown(text) {
