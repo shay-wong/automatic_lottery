@@ -10,10 +10,14 @@ window.WH = window.WH || {};
   window.fetch = async function (...args) {
     // 捕获请求中的 CSRF token
     const options = args[1] || {};
-    const headers = options.headers || {};
-    if (headers['x-csrf-token']) {
-      window._farmCsrfToken = headers['x-csrf-token'];
-      console.log('[自动农场] 捕获到 CSRF token');
+    const headers = options.headers;
+    if (headers) {
+      // headers 可能是 Headers 对象或普通对象
+      const token = headers instanceof Headers ? headers.get('x-csrf-token') : headers['x-csrf-token'];
+      if (token) {
+        window._farmCsrfToken = token;
+        console.log('[自动农场] 捕获到 CSRF token:', token.substring(0, 10) + '...');
+      }
     }
 
     const response = await originalFetch.apply(this, args);
