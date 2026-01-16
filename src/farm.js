@@ -71,6 +71,8 @@ window.WH = window.WH || {};
     stats: { harvested: 0, planted: 0, totalProfit: 0 },
     // API 返回的作物数据缓存
     cropsData: null,
+    // 种子排名列表是否展开
+    _seedListExpanded: false,
 
     init() {
       this.config = { ...this.defaultConfig };
@@ -607,39 +609,42 @@ window.WH = window.WH || {};
         }
 
         if (seedList.length > 0) {
-          const strategyNames = {
-            profit: '体力收益优先',
-            exp: '体力经验优先',
-            fast: '速度优先',
-            efficiency: '时间收益优先',
-            exp_efficiency: '时间经验优先'
-          };
+          const best = seedList[0];
+          const isExpanded = this._seedListExpanded || false;
 
           seedTableHtml = `<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.1);">`;
-          seedTableHtml += `<div class="${PREFIX}-row"><span class="${PREFIX}-label" style="font-weight:bold;">种子排名</span><span class="${PREFIX}-val" style="font-size:10px;opacity:0.7;">${strategyNames[strategy] || '收益优先'}</span></div>`;
 
-          // 表头
-          seedTableHtml += `<div style="display:flex;font-size:10px;opacity:0.6;margin:4px 0;padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.1);">
-            <span style="flex:2;">名称</span>
-            <span style="flex:1;text-align:right;">奖励</span>
-            <span style="flex:1;text-align:right;">成本</span>
-            <span style="flex:1;text-align:right;">收益</span>
-            <span style="flex:1;text-align:right;">时间</span>
-            <span style="flex:1;text-align:right;">经验</span>
+          // 最优种子显示
+          seedTableHtml += `<div class="${PREFIX}-row"><span class="${PREFIX}-label" style="color:#30d158;">最优种子</span><span class="${PREFIX}-val" style="color:#30d158;font-weight:bold;">${best.name}</span></div>`;
+          seedTableHtml += `<div class="${PREFIX}-row"><span class="${PREFIX}-label">收益/时间/经验</span><span class="${PREFIX}-val">${best.profit} / ${best.growMinutes}分 / ${best.exp}</span></div>`;
+
+          // 展开/收起按钮
+          seedTableHtml += `<div style="text-align:center;margin-top:6px;">
+            <button id="${PREFIX}-toggle-seeds" style="background:rgba(255,255,255,0.1);border:none;color:#fff;padding:4px 12px;border-radius:4px;font-size:11px;cursor:pointer;">
+              ${isExpanded ? '收起排名 ▲' : '查看排名 ▼'}
+            </button>
           </div>`;
 
-          seedList.forEach((crop, index) => {
-            const isBest = index === 0;
-            const style = isBest ? 'color:#30d158;font-weight:bold;' : '';
-            seedTableHtml += `<div style="display:flex;font-size:11px;${style}padding:2px 0;">
-              <span style="flex:2;overflow:hidden;text-overflow:ellipsis;">${crop.name}</span>
-              <span style="flex:1;text-align:right;">${crop.reward}</span>
-              <span style="flex:1;text-align:right;">${crop.cost}</span>
-              <span style="flex:1;text-align:right;">${crop.profit}</span>
-              <span style="flex:1;text-align:right;">${crop.growMinutes}分</span>
-              <span style="flex:1;text-align:right;">${crop.exp}</span>
+          // 完整排名列表（可折叠）
+          if (isExpanded) {
+            seedTableHtml += `<div id="${PREFIX}-seed-list" style="margin-top:8px;">`;
+            seedTableHtml += `<div style="display:flex;font-size:10px;opacity:0.6;padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.1);">
+              <span style="flex:2;">名称</span>
+              <span style="flex:1;text-align:right;">收益</span>
+              <span style="flex:1;text-align:right;">时间</span>
+              <span style="flex:1;text-align:right;">经验</span>
             </div>`;
-          });
+            seedList.forEach((crop, index) => {
+              const style = index === 0 ? 'color:#30d158;font-weight:bold;' : '';
+              seedTableHtml += `<div style="display:flex;font-size:11px;${style}padding:2px 0;">
+                <span style="flex:2;">${crop.name}</span>
+                <span style="flex:1;text-align:right;">${crop.profit}</span>
+                <span style="flex:1;text-align:right;">${crop.growMinutes}分</span>
+                <span style="flex:1;text-align:right;">${crop.exp}</span>
+              </div>`;
+            });
+            seedTableHtml += `</div>`;
+          }
           seedTableHtml += `</div>`;
         }
       }

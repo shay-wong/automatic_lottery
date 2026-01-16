@@ -204,7 +204,17 @@ window.WH = window.WH || {};
 
   function updateStatsDisplay() {
     const el = document.getElementById(`${PREFIX}-stats`);
-    if (el && currentModule) el.innerHTML = currentModule.getStatsDisplay();
+    if (el && currentModule) {
+      el.innerHTML = currentModule.getStatsDisplay();
+      // 绑定折叠按钮事件（农场模块）
+      const toggleBtn = document.getElementById(`${PREFIX}-toggle-seeds`);
+      if (toggleBtn && currentModule._seedListExpanded !== undefined) {
+        toggleBtn.onclick = () => {
+          currentModule._seedListExpanded = !currentModule._seedListExpanded;
+          updateStatsDisplay();
+        };
+      }
+    }
   }
 
   function updateConfigDisplay() {
