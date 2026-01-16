@@ -66,11 +66,12 @@ window.WH = window.WH || {};
 
       // 尝试从 API 获取
       try {
-        const resp = await fetch('/farm_state.php');
-        const data = await resp.json();
-        if (data.crops && Array.isArray(data.crops)) {
+        const resp = await fetch('/api/farm_state.php');
+        const json = await resp.json();
+        const crops = json.data?.crops || json.crops;
+        if (crops && Array.isArray(crops)) {
           this.cropsData = {};
-          data.crops.forEach(crop => {
+          crops.forEach(crop => {
             this.cropsData[crop.key] = {
               reward: crop.reward,
               seedCost: crop.seed_cost,
