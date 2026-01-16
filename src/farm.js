@@ -4,6 +4,39 @@
 
 window.WH = window.WH || {};
 
+// 拦截 fetch 请求，捕获 farm_state API 响应
+(function () {
+  const originalFetch = window.fetch;
+  window.fetch = async function (...args) {
+    const response = await originalFetch.apply(this, args);
+    const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
+
+    // 捕获 farm_state API 响应
+    if (url.includes('farm_state')) {
+      try {
+        const cloned = response.clone();
+        const json = await cloned.json();
+        const crops = json.data?.crops || json.crops;
+        if (crops && Array.isArray(crops)) {
+          window._farmCropsData = {};
+          crops.forEach(crop => {
+            window._farmCropsData[crop.key] = {
+              reward: crop.reward,
+              seedCost: crop.seed_cost,
+              growSeconds: crop.grow_seconds,
+              exp: crop.exp
+            };
+          });
+          console.log('[自动农场] 拦截到 farm_state API 数据:', window._farmCropsData);
+        }
+      } catch (e) {
+        console.warn('[自动农场] 解析 farm_state 响应失败:', e);
+      }
+    }
+    return response;
+  };
+})();
+
 (function () {
   const PREFIX = WH.PREFIX || 'wh';
 
@@ -49,6 +82,13 @@ window.WH = window.WH || {};
 
     // 从 API 获取作物数据
     async refreshCropsData() {
+      // 优先使用拦截到的 API 数据
+      if (window._farmCropsData && Object.keys(window._farmCropsData).length > 0) {
+        this.cropsData = window._farmCropsData;
+        console.log('[自动农场] 使用拦截到的 API 数据:', this.cropsData);
+        return;
+      }
+
       // 尝试从 window.state 获取
       if (window.state && window.state.crops) {
         this.cropsData = {};
@@ -62,39 +102,6 @@ window.WH = window.WH || {};
         });
         console.log('[自动农场] 从 window.state 获取作物数据:', this.cropsData);
         return;
-      }
-
-      // 尝试从 API 获取（需要 CSRF token）
-      try {
-        // 获取 CSRF token
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content
-          || document.querySelector('input[name="_token"]')?.value
-          || window.csrfToken
-          || '';
-
-        const headers = {};
-        if (csrfToken) {
-          headers['x-csrf-token'] = csrfToken;
-        }
-
-        const resp = await fetch('/api/farm_state.php', { headers });
-        const json = await resp.json();
-        const crops = json.data?.crops || json.crops;
-        if (crops && Array.isArray(crops)) {
-          this.cropsData = {};
-          crops.forEach(crop => {
-            this.cropsData[crop.key] = {
-              reward: crop.reward,
-              seedCost: crop.seed_cost,
-              growSeconds: crop.grow_seconds,
-              exp: crop.exp
-            };
-          });
-          console.log('[自动农场] 从 API 获取作物数据:', this.cropsData);
-          return;
-        }
-      } catch (e) {
-        console.warn('[自动农场] API 获取作物数据失败:', e);
       }
 
       // 兜底：使用静态数据
