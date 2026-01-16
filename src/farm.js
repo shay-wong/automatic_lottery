@@ -353,6 +353,8 @@ window.WH = window.WH || {};
 
       // 优先使用 harvest_all API 一次性收割
       const csrfToken = window._getCsrfToken?.() || window._farmCsrfToken;
+      console.log(`[自动农场] 收割 CSRF Token: ${csrfToken ? '已获取' : '未获取'}`, csrfToken ? csrfToken.substring(0, 10) + '...' : null);
+
       if (csrfToken) {
         try {
           const result = await this.callHarvestAllApi(csrfToken);
@@ -571,6 +573,8 @@ window.WH = window.WH || {};
 
       // 优先使用 fetch API 直接调用
       const csrfToken = window._getCsrfToken?.() || window._farmCsrfToken;
+      console.log(`[自动农场] CSRF Token: ${csrfToken ? '已获取' : '未获取'}`, csrfToken ? csrfToken.substring(0, 10) + '...' : null);
+
       if (csrfToken) {
         try {
           const result = await this.callPlantApi(seed.id, plotIndices, csrfToken);
