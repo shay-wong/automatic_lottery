@@ -56,16 +56,37 @@ window.WH = window.WH || {};
     return response;
   };
 
-  // 尝试从页面 meta 标签获取 CSRF token
-  setTimeout(() => {
-    if (!window._farmCsrfToken) {
-      const meta = document.querySelector('meta[name="csrf-token"]');
-      if (meta) {
-        window._farmCsrfToken = meta.getAttribute('content');
-        console.log('[自动农场] 从 meta 标签获取 CSRF token');
-      }
+  // 主动获取 CSRF token 的函数
+  window._getCsrfToken = function() {
+    if (window._farmCsrfToken) return window._farmCsrfToken;
+
+    // 从 meta 标签获取
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    if (meta) {
+      window._farmCsrfToken = meta.getAttribute('content');
+      console.log('[自动农场] 从 meta 标签获取 CSRF token');
+      return window._farmCsrfToken;
     }
-  }, 1000);
+
+    // 从 window.csrfToken 获取
+    if (window.csrfToken) {
+      window._farmCsrfToken = window.csrfToken;
+      console.log('[自动农场] 从 window.csrfToken 获取 CSRF token');
+      return window._farmCsrfToken;
+    }
+
+    // 从 window.state 获取
+    if (window.state?.csrf_token) {
+      window._farmCsrfToken = window.state.csrf_token;
+      console.log('[自动农场] 从 window.state 获取 CSRF token');
+      return window._farmCsrfToken;
+    }
+
+    return null;
+  };
+
+  // 页面加载后尝试获取
+  setTimeout(() => window._getCsrfToken(), 500);
 })();
 
 (function () {
@@ -331,7 +352,7 @@ window.WH = window.WH || {};
       console.log(`[自动农场] 准备收割 ${readyCount} 块作物`);
 
       // 优先使用 harvest_all API 一次性收割
-      const csrfToken = window._farmCsrfToken;
+      const csrfToken = window._getCsrfToken?.() || window._farmCsrfToken;
       if (csrfToken) {
         try {
           const result = await this.callHarvestAllApi(csrfToken);
@@ -549,7 +570,7 @@ window.WH = window.WH || {};
       console.log(`[自动农场] 准备种植 ${seed.name}，空地索引:`, plotIndices);
 
       // 优先使用 fetch API 直接调用
-      const csrfToken = window._farmCsrfToken;
+      const csrfToken = window._getCsrfToken?.() || window._farmCsrfToken;
       if (csrfToken) {
         try {
           const result = await this.callPlantApi(seed.id, plotIndices, csrfToken);
