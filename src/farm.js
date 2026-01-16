@@ -64,9 +64,20 @@ window.WH = window.WH || {};
         return;
       }
 
-      // 尝试从 API 获取
+      // 尝试从 API 获取（需要 CSRF token）
       try {
-        const resp = await fetch('/api/farm_state.php');
+        // 获取 CSRF token
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content
+          || document.querySelector('input[name="_token"]')?.value
+          || window.csrfToken
+          || '';
+
+        const headers = {};
+        if (csrfToken) {
+          headers['x-csrf-token'] = csrfToken;
+        }
+
+        const resp = await fetch('/api/farm_state.php', { headers });
         const json = await resp.json();
         const crops = json.data?.crops || json.crops;
         if (crops && Array.isArray(crops)) {
