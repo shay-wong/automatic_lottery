@@ -627,64 +627,40 @@ window.WH = window.WH || {};
 
     getStatsDisplay() {
       const seeds = this.getAvailableSeeds();
-
-      // 统计数据收集进度
-      let hasData = 0;
-      let totalSeeds = seeds.length;
-      seeds.forEach(seed => {
-        const data = this.profitData[seed.id];
-        if (data && data.count > 0) hasData++;
-      });
-
-      // 计算每种作物的收益和ROI
-      const cropStats = [];
-      let bestCrop = null;
-      let bestROI = -Infinity;
-
-      seeds.forEach(seed => {
-        const data = this.profitData[seed.id];
-        if (data && data.count > 0) {
-          const avgProfit = data.totalProfit / data.count;
-          const roi = seed.cost > 0 ? (avgProfit - seed.cost) / seed.cost : 0;
-          cropStats.push({
-            name: seed.name,
-            avgProfit: avgProfit,
-            roi: roi,
-            count: data.count
-          });
-          if (roi > bestROI) {
-            bestROI = roi;
-            bestCrop = seed.name;
-          }
-        }
-      });
-
-      // 按ROI排序
-      cropStats.sort((a, b) => b.roi - a.roi);
-
-      const dataProgress = `${hasData}/${totalSeeds}`;
       const stamina = this.getStamina();
       const staminaText = stamina ? `${stamina.current}/${stamina.max}` : '-';
 
-      // 生成作物收益列表
-      let cropListHtml = '';
-      if (cropStats.length > 0) {
-        cropListHtml = `<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.1);">`;
-        cropStats.forEach((crop, index) => {
-          const isBest = index === 0 && cropStats.length > 1;
-          const style = isBest ? 'color:#30d158;' : '';
-          cropListHtml += `<div class="${PREFIX}-row"><span class="${PREFIX}-label" style="${style}">${crop.name}</span><span class="${PREFIX}-val" style="font-size:11px;${style}">${crop.avgProfit.toFixed(1)} (${(crop.roi * 100).toFixed(0)}%)</span></div>`;
+      // 基于 API 数据计算 ROI 排名
+      let roiListHtml = '';
+      if (this.cropsData && Object.keys(this.cropsData).length > 0) {
+        const roiList = [];
+        seeds.forEach(seed => {
+          const data = this.cropsData[seed.id];
+          if (data && data.seedCost > 0) {
+            const roi = (data.reward - data.seedCost) / data.seedCost;
+            roiList.push({ name: seed.name, roi, profit: data.reward - data.seedCost });
+          }
         });
-        cropListHtml += `</div>`;
+        roiList.sort((a, b) => b.roi - a.roi);
+
+        if (roiList.length > 0) {
+          roiListHtml = `<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.1);">`;
+          roiListHtml += `<div class="${PREFIX}-row"><span class="${PREFIX}-label" style="font-weight:bold;">基础ROI</span><span class="${PREFIX}-val" style="font-size:10px;opacity:0.7;">净利/ROI</span></div>`;
+          roiList.forEach((crop, index) => {
+            const isBest = index === 0;
+            const style = isBest ? 'color:#30d158;' : '';
+            roiListHtml += `<div class="${PREFIX}-row"><span class="${PREFIX}-label" style="${style}">${crop.name}</span><span class="${PREFIX}-val" style="font-size:11px;${style}">${crop.profit} (${(crop.roi * 100).toFixed(0)}%)</span></div>`;
+          });
+          roiListHtml += `</div>`;
+        }
       }
 
       return `
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">体力</span><span class="${PREFIX}-val">${staminaText}</span></div>
-        <div class="${PREFIX}-row"><span class="${PREFIX}-label">数据收集</span><span class="${PREFIX}-val">${dataProgress}</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">已收割</span><span class="${PREFIX}-val">${this.stats.harvested}</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">已种植</span><span class="${PREFIX}-val">${this.stats.planted}</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">总收益</span><span class="${PREFIX}-val">${this.stats.totalProfit.toFixed(1)}</span></div>
-        ${cropListHtml}
+        ${roiListHtml}
       `;
     },
 
