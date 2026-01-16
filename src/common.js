@@ -7,6 +7,30 @@ window.WH = window.WH || {};
 (function () {
   const PREFIX = 'wh';
 
+  // ============== 存储函数 ==============
+  function saveConfig(key, value) {
+    const json = JSON.stringify(value);
+    if (typeof GM_setValue === 'function') {
+      GM_setValue(key, json);
+    } else {
+      localStorage.setItem(key, json);
+    }
+  }
+
+  function loadConfig(key, defaultValue) {
+    try {
+      let json;
+      if (typeof GM_getValue === 'function') {
+        json = GM_getValue(key, null);
+      } else {
+        json = localStorage.getItem(key);
+      }
+      return json ? { ...defaultValue, ...JSON.parse(json) } : { ...defaultValue };
+    } catch (e) {
+      return { ...defaultValue };
+    }
+  }
+
   // ============== 工具函数 ==============
   function showToast(msg) {
     const toast = document.createElement('div');
@@ -433,6 +457,8 @@ window.WH = window.WH || {};
   WH.PREFIX = PREFIX;
   WH.showToast = showToast;
   WH.getWalletBalance = getWalletBalance;
+  WH.saveConfig = saveConfig;
+  WH.loadConfig = loadConfig;
   WH.createSettingsModal = createSettingsModal;
   WH.updateStatus = updateStatus;
   WH.updateStatsDisplay = updateStatsDisplay;

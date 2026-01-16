@@ -176,12 +176,7 @@ window.WH = window.WH || {};
     _seedListExpanded: false,
 
     init() {
-      this.config = { ...this.defaultConfig };
-      try {
-        const saved = localStorage.getItem(this.configKey);
-        if (saved) this.config = { ...this.defaultConfig, ...JSON.parse(saved) };
-      } catch (e) {}
-
+      this.config = WH.loadConfig(this.configKey, this.defaultConfig);
       // 尝试从页面获取作物数据
       this.refreshCropsData();
     },
@@ -325,7 +320,7 @@ window.WH = window.WH || {};
     },
 
     saveConfig() {
-      localStorage.setItem(this.configKey, JSON.stringify(this.config));
+      WH.saveConfig(this.configKey, this.config);
     },
 
     getBestSeed(seeds) {
