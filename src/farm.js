@@ -164,6 +164,7 @@ window.WH = window.WH || {};
       autoSelectBest: true,
       seedStrategy: 'profit', // profit/exp/fast/efficiency/exp_efficiency
       minBalance: 0,
+      maxPlantCount: 0, // 0 表示不限制
     },
     config: null,
     isRunning: false,
@@ -629,6 +630,11 @@ window.WH = window.WH || {};
         return 0;
       }
 
+      // 限制种植数量
+      if (this.config.maxPlantCount > 0 && plotIndices.length > this.config.maxPlantCount) {
+        plotIndices = plotIndices.slice(0, this.config.maxPlantCount);
+      }
+
       console.log(`[自动农场] 准备种植 ${seed.name}，空地索引:`, plotIndices);
 
       // 优先使用 fetch API 直接调用
@@ -959,6 +965,10 @@ window.WH = window.WH || {};
             <label>最低余额 (0=不限)</label>
             <input type="number" id="inp-min-balance" value="${this.config.minBalance}" min="0">
           </div>
+          <div class="${PREFIX}-input-row">
+            <label>种植数量 (0=不限)</label>
+            <input type="number" id="inp-max-plant" value="${this.config.maxPlantCount}" min="0">
+          </div>
         </div>
         <div class="${PREFIX}-input-group">
           <div class="${PREFIX}-input-row">
@@ -993,6 +1003,7 @@ window.WH = window.WH || {};
       `, () => {
         this.config.interval = Math.max(10, parseInt(document.getElementById('inp-interval').value) || 30) * 1000;
         this.config.minBalance = Math.max(0, parseInt(document.getElementById('inp-min-balance').value) || 0);
+        this.config.maxPlantCount = Math.max(0, parseInt(document.getElementById('inp-max-plant').value) || 0);
         this.config.autoHarvest = document.getElementById('tog-harvest').classList.contains('active');
         this.config.autoPlant = document.getElementById('tog-plant').classList.contains('active');
         this.config.autoSelectBest = document.getElementById('tog-smart').classList.contains('active');
