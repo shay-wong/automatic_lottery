@@ -8,12 +8,30 @@ window.WH = window.WH || {};
 (function () {
   const originalFetch = window.fetch;
   window.fetch = async function (...args) {
-    // 捕获请求中的 CSRF token
+    const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
     const options = args[1] || {};
+
+    // 打印所有请求信息用于调试
+    console.log('[自动农场] 拦截到请求:', url, {
+      method: options.method || 'GET',
+      headers: options.headers,
+      headersType: options.headers ? options.headers.constructor.name : 'undefined'
+    });
+
+    // 捕获请求中的 CSRF token
     const headers = options.headers;
     if (headers) {
-      // headers 可能是 Headers 对象或普通对象
-      const token = headers instanceof Headers ? headers.get('x-csrf-token') : headers['x-csrf-token'];
+      let token = null;
+      // headers 可能是 Headers 对象、普通对象或数组
+      if (headers instanceof Headers) {
+        token = headers.get('x-csrf-token');
+      } else if (Array.isArray(headers)) {
+        const found = headers.find(h => h[0]?.toLowerCase() === 'x-csrf-token');
+        token = found ? found[1] : null;
+      } else if (typeof headers === 'object') {
+        token = headers['x-csrf-token'] || headers['X-Csrf-Token'] || headers['X-CSRF-TOKEN'];
+      }
+
       if (token) {
         window._farmCsrfToken = token;
         console.log('[自动农场] 捕获到 CSRF token:', token.substring(0, 10) + '...');
@@ -21,7 +39,6 @@ window.WH = window.WH || {};
     }
 
     const response = await originalFetch.apply(this, args);
-    const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
 
     // 捕获 farm_state API 响应
     if (url.includes('farm_state')) {
