@@ -722,6 +722,11 @@ window.WH = window.WH || {};
       }
 
       console.log('[自动农场] 本地缓存已刷新');
+
+      // 刷新网页 UI
+      if (typeof window.renderState === 'function') {
+        window.renderState(state);
+      }
     },
 
     parseCountdown(text) {
