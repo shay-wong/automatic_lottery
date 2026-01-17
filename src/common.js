@@ -160,26 +160,37 @@ window.WH = window.WH || {};
         background: rgba(0,0,0,0.4); backdrop-filter: blur(10px);
       }
       .${PREFIX}-modal {
-        position: relative; width: 280px;
+        position: relative; width: 360px; min-width: 320px; min-height: 220px;
+        max-width: calc(100vw - 24px); max-height: calc(100vh - 24px);
         background: rgba(30,30,30,0.9); backdrop-filter: blur(40px);
         border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+        resize: both; overflow: hidden; display: flex; flex-direction: column;
       }
-      .${PREFIX}-modal-header { padding: 16px; text-align: center; }
+      .${PREFIX}-modal-header { padding: 16px; text-align: center; flex: 0 0 auto; }
       .${PREFIX}-modal-title { font-weight: 600; font-size: 16px; color: #fff; }
-      .${PREFIX}-modal-body { padding: 0 16px 16px; }
+      .${PREFIX}-modal-body { padding: 0 16px 16px; flex: 1 1 auto; overflow: auto; }
       .${PREFIX}-input-group { background: rgba(255,255,255,0.08); border-radius: 10px; overflow: hidden; margin-bottom: 12px; }
-      .${PREFIX}-input-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+      .${PREFIX}-input-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.05); }
       .${PREFIX}-input-row:last-child { border-bottom: none; }
-      .${PREFIX}-input-row label { font-size: 14px; color: #fff; }
+      .${PREFIX}-input-row label {
+        font-size: 14px; color: #fff; flex: 0 0 100px;
+        text-align: left; white-space: nowrap;
+      }
       .${PREFIX}-input-row input[type="number"] {
-        width: 80px; background: transparent; border: none;
+        width: 120px; background: transparent; border: none;
         color: #0a84ff; text-align: right; font-size: 15px; outline: none;
       }
       .${PREFIX}-input-row select {
         background: transparent; border: none;
         color: #0a84ff; font-size: 14px; outline: none;
+        text-align: right; text-align-last: right;
+        width: auto; min-width: 0;
       }
       .${PREFIX}-input-row select option { background: #2c2c2e; color: #fff; }
+      .${PREFIX}-input-inline { display: flex; align-items: center; gap: 6px; flex: 1 1 auto; min-width: 0; justify-content: flex-end; }
+      .${PREFIX}-input-inline select { flex: 0 0 auto; }
+      .${PREFIX}-input-inline input { width: 120px; min-width: 100px; }
+      .${PREFIX}-hint { font-size: 12px; color: rgba(255,255,255,0.6); margin: 6px 14px 0; }
       .${PREFIX}-toggle {
         position: relative; width: 51px; height: 31px;
         background: rgba(120,120,128,0.32); border-radius: 16px;
@@ -193,7 +204,7 @@ window.WH = window.WH || {};
         box-shadow: 0 3px 8px rgba(0,0,0,0.15);
       }
       .${PREFIX}-toggle.active::after { transform: translateX(20px); }
-      .${PREFIX}-modal-footer { display: flex; border-top: 1px solid rgba(84,84,88,0.5); }
+      .${PREFIX}-modal-footer { display: flex; border-top: 1px solid rgba(84,84,88,0.5); flex: 0 0 auto; }
       .${PREFIX}-modal-btn {
         flex: 1; height: 44px; border: none; background: transparent;
         font-size: 16px; cursor: pointer; color: #0a84ff;
@@ -223,6 +234,30 @@ window.WH = window.WH || {};
       </div>
     `;
     document.body.appendChild(modal);
+
+    const autoSizeSelect = (select) => {
+      if (!select) return;
+      const style = window.getComputedStyle(select);
+      const probe = document.createElement('span');
+      probe.style.position = 'absolute';
+      probe.style.visibility = 'hidden';
+      probe.style.whiteSpace = 'nowrap';
+      probe.style.font = style.font;
+      probe.textContent = select.options[select.selectedIndex]?.textContent || '';
+      document.body.appendChild(probe);
+      const textWidth = Math.ceil(probe.getBoundingClientRect().width);
+      const paddingLeft = parseFloat(style.paddingLeft) || 0;
+      const paddingRight = parseFloat(style.paddingRight) || 0;
+      const arrowWidth = 30;
+      probe.remove();
+      const width = Math.max(90, textWidth + paddingLeft + paddingRight + arrowWidth);
+      select.style.width = `${width}px`;
+    };
+
+    modal.querySelectorAll('select').forEach(select => {
+      autoSizeSelect(select);
+      select.addEventListener('change', () => autoSizeSelect(select));
+    });
 
     modal.querySelector(`.${PREFIX}-backdrop`).onclick = () => modal.remove();
     document.getElementById('btn-cancel').onclick = () => modal.remove();

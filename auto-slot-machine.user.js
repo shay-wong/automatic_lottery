@@ -15,11 +15,17 @@
 (function () {
   'use strict';
 
-  const DEFAULT_CONFIG = { interval: 6000 };
+  const DEFAULT_CONFIG = { interval: 6000, intervalUnit: 's' };
   let CONFIG = { ...DEFAULT_CONFIG };
   try {
     const saved = localStorage.getItem('asm_config');
-    if (saved) CONFIG = { ...DEFAULT_CONFIG, ...JSON.parse(saved) };
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      CONFIG = { ...DEFAULT_CONFIG, ...parsed };
+      if (!CONFIG.intervalUnit) {
+        CONFIG.intervalUnit = CONFIG.interval % 1000 === 0 ? 's' : 'ms';
+      }
+    }
   } catch (e) {}
 
   let isRunning = false;
@@ -27,6 +33,62 @@
 
   function saveConfig() {
     localStorage.setItem('asm_config', JSON.stringify(CONFIG));
+  }
+
+  function formatDuration(ms, unit) {
+    if (unit === 's') {
+      const seconds = ms / 1000;
+      const secondsText = Number.isInteger(seconds) ? seconds : seconds.toFixed(2);
+      return `${secondsText}秒`;
+    }
+    if (unit === 'ms') {
+      return `${ms}毫秒`;
+    }
+    if (ms % 1000 === 0) return `${ms / 1000}秒`;
+    return `${ms}毫秒`;
+  }
+
+  function normalizeDurationValue(value) {
+    return Number.isInteger(value) ? value : parseFloat(value.toFixed(3));
+  }
+
+  function getDurationParts(ms, unit) {
+    if (unit === 's') {
+      return { value: normalizeDurationValue(ms / 1000), unit: 's' };
+    }
+    if (unit === 'ms') {
+      return { value: normalizeDurationValue(ms), unit: 'ms' };
+    }
+    if (ms % 1000 === 0) {
+      return { value: ms / 1000, unit: 's' };
+    }
+    return { value: ms, unit: 'ms' };
+  }
+
+  function toMilliseconds(value, unit, fallback) {
+    const num = parseFloat(value);
+    if (!Number.isFinite(num)) return fallback;
+    const ms = unit === 's' ? num * 1000 : num;
+    return Math.max(1, Math.round(ms));
+  }
+
+  function autoSizeSelect(select) {
+    if (!select) return;
+    const style = window.getComputedStyle(select);
+    const probe = document.createElement('span');
+    probe.style.position = 'absolute';
+    probe.style.visibility = 'hidden';
+    probe.style.whiteSpace = 'nowrap';
+    probe.style.font = style.font;
+    probe.textContent = select.options[select.selectedIndex]?.textContent || '';
+    document.body.appendChild(probe);
+    const textWidth = Math.ceil(probe.getBoundingClientRect().width);
+    const paddingLeft = parseFloat(style.paddingLeft) || 0;
+    const paddingRight = parseFloat(style.paddingRight) || 0;
+    const arrowWidth = 30;
+    probe.remove();
+    const width = Math.max(90, textWidth + paddingLeft + paddingRight + arrowWidth);
+    select.style.width = `${width}px`;
   }
 
   function showToast(msg) {
@@ -119,21 +181,36 @@
         background: rgba(0,0,0,0.4); backdrop-filter: blur(10px);
       }
       .asm-modal {
-        position: relative; width: 260px;
+        position: relative; width: 360px; min-width: 320px; min-height: 220px;
+        max-width: calc(100vw - 24px); max-height: calc(100vh - 24px);
         background: rgba(30,30,30,0.9); backdrop-filter: blur(40px);
         border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+        resize: both; overflow: hidden; display: flex; flex-direction: column;
       }
-      .asm-modal-header { padding: 16px; text-align: center; }
+      .asm-modal-header { padding: 16px; text-align: center; flex: 0 0 auto; }
       .asm-modal-title { font-weight: 600; font-size: 16px; color: #fff; }
-      .asm-modal-body { padding: 0 16px 16px; }
+      .asm-modal-body { padding: 0 16px 16px; flex: 1 1 auto; overflow: auto; }
       .asm-input-group { background: rgba(255,255,255,0.08); border-radius: 10px; overflow: hidden; }
-      .asm-input-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; }
-      .asm-input-row label { font-size: 14px; color: #fff; }
+      .asm-input-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 14px; }
+      .asm-input-row label {
+        font-size: 14px; color: #fff; flex: 0 0 100px;
+        text-align: left; white-space: nowrap;
+      }
       .asm-input-row input {
-        width: 80px; background: transparent; border: none;
+        width: 120px; background: transparent; border: none;
         color: #0a84ff; text-align: right; font-size: 15px; outline: none;
       }
-      .asm-modal-footer { display: flex; border-top: 1px solid rgba(84,84,88,0.5); }
+      .asm-input-row select {
+        background: transparent; border: none;
+        color: #0a84ff; font-size: 14px; outline: none;
+        text-align: right; text-align-last: right;
+        width: auto; min-width: 0;
+      }
+      .asm-input-inline { display: flex; align-items: center; gap: 6px; flex: 1 1 auto; min-width: 0; justify-content: flex-end; }
+      .asm-input-inline select { flex: 0 0 auto; }
+      .asm-input-inline input { width: 120px; min-width: 100px; }
+      .asm-hint { font-size: 12px; color: rgba(255,255,255,0.6); margin: 6px 14px 0; }
+      .asm-modal-footer { display: flex; border-top: 1px solid rgba(84,84,88,0.5); flex: 0 0 auto; }
       .asm-modal-btn {
         flex: 1; height: 44px; border: none; background: transparent;
         font-size: 16px; cursor: pointer; color: #0a84ff;
@@ -190,7 +267,7 @@
 
   function updateConfigDisplay() {
     document.getElementById('asm-config').innerHTML = `
-      <div class="asm-row"><span class="asm-label">间隔时间</span><span class="asm-val">${CONFIG.interval / 1000}秒</span></div>
+      <div class="asm-row"><span class="asm-label">间隔时间</span><span class="asm-val">${formatDuration(CONFIG.interval, CONFIG.intervalUnit)}</span></div>
     `;
   }
 
@@ -198,6 +275,7 @@
     const existing = document.getElementById('asm-settings');
     if (existing) existing.remove();
 
+    const intervalParts = getDurationParts(CONFIG.interval, CONFIG.intervalUnit);
     const modal = document.createElement('div');
     modal.id = 'asm-settings';
     modal.innerHTML = `
@@ -207,9 +285,16 @@
         <div class="asm-modal-body">
           <div class="asm-input-group">
             <div class="asm-input-row">
-              <label>间隔 (秒)</label>
-              <input type="number" id="inp-interval" value="${CONFIG.interval / 1000}" min="1">
+              <label>间隔</label>
+              <div class="asm-input-inline">
+                <input type="number" id="inp-interval" value="${intervalParts.value}" min="1" step="any">
+                <select id="sel-interval-unit">
+                  <option value="s" ${intervalParts.unit === 's' ? 'selected' : ''}>秒</option>
+                  <option value="ms" ${intervalParts.unit === 'ms' ? 'selected' : ''}>毫秒</option>
+                </select>
+              </div>
             </div>
+            <div class="asm-hint">单位可选秒/毫秒，切换会自动换算</div>
           </div>
         </div>
         <div class="asm-modal-footer">
@@ -221,9 +306,30 @@
     document.body.appendChild(modal);
 
     modal.querySelector('.asm-backdrop').onclick = () => modal.remove();
+    const intervalInput = document.getElementById('inp-interval');
+    const intervalUnitSelect = document.getElementById('sel-interval-unit');
+    intervalUnitSelect.dataset.prevUnit = intervalUnitSelect.value;
+    autoSizeSelect(intervalUnitSelect);
+    intervalUnitSelect.addEventListener('change', () => {
+      const prevUnit = intervalUnitSelect.dataset.prevUnit;
+      const nextUnit = intervalUnitSelect.value;
+      if (prevUnit === nextUnit) return;
+      const currentValue = parseFloat(intervalInput.value);
+      if (Number.isFinite(currentValue)) {
+        const converted = prevUnit === 's' && nextUnit === 'ms'
+          ? currentValue * 1000
+          : currentValue / 1000;
+        intervalInput.value = normalizeDurationValue(converted);
+      }
+      intervalUnitSelect.dataset.prevUnit = nextUnit;
+      autoSizeSelect(intervalUnitSelect);
+    });
     document.getElementById('btn-cancel').onclick = () => modal.remove();
     document.getElementById('btn-save').onclick = () => {
-      CONFIG.interval = Math.max(1, parseInt(document.getElementById('inp-interval').value) || 6) * 1000;
+      const intervalValue = document.getElementById('inp-interval').value;
+      const intervalUnit = document.getElementById('sel-interval-unit').value;
+      CONFIG.interval = toMilliseconds(intervalValue, intervalUnit, CONFIG.interval);
+      CONFIG.intervalUnit = intervalUnit;
       saveConfig();
       updateConfigDisplay();
       if (isRunning) {

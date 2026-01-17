@@ -205,12 +205,50 @@ window.WH = window.WH || {};
 (function () {
   const PREFIX = WH.PREFIX || 'wh';
 
+  const formatDuration = (ms, unit) => {
+    if (unit === 's') {
+      const seconds = ms / 1000;
+      const secondsText = Number.isInteger(seconds) ? seconds : seconds.toFixed(2);
+      return `${secondsText}秒`;
+    }
+    if (unit === 'ms') {
+      return `${ms}毫秒`;
+    }
+    if (ms % 1000 === 0) return `${ms / 1000}秒`;
+    return `${ms}毫秒`;
+  };
+
+  const normalizeDurationValue = (value) => (
+    Number.isInteger(value) ? value : parseFloat(value.toFixed(3))
+  );
+
+  const getDurationParts = (ms, unit) => {
+    if (unit === 's') {
+      return { value: normalizeDurationValue(ms / 1000), unit: 's' };
+    }
+    if (unit === 'ms') {
+      return { value: normalizeDurationValue(ms), unit: 'ms' };
+    }
+    if (ms % 1000 === 0) {
+      return { value: ms / 1000, unit: 's' };
+    }
+    return { value: ms, unit: 'ms' };
+  };
+
+  const toMilliseconds = (value, unit, fallback) => {
+    const num = parseFloat(value);
+    if (!Number.isFinite(num)) return fallback;
+    const ms = unit === 's' ? num * 1000 : num;
+    return Math.max(1, Math.round(ms));
+  };
+
   const FarmModule = {
     name: '自动农场',
     color: '#30d158',
     configKey: 'wh_farm_config',
     defaultConfig: {
       interval: 30000,
+      intervalUnit: 's',
       autoHarvest: true,
       autoPlant: true,
       selectedSeed: null,
@@ -231,6 +269,9 @@ window.WH = window.WH || {};
 
     init() {
       this.config = WH.loadConfig(this.configKey, this.defaultConfig);
+      if (!this.config.intervalUnit) {
+        this.config.intervalUnit = this.config.interval % 1000 === 0 ? 's' : 'ms';
+      }
       this._seedListExpanded = !!this.config.seedListExpanded;
       // 尝试从页面获取作物数据
       this.refreshCropsData();
@@ -1019,7 +1060,7 @@ window.WH = window.WH || {};
       };
       const strategyText = strategyNames[this.config.seedStrategy] || '体力收益优先';
       return `
-        <div class="${PREFIX}-row"><span class="${PREFIX}-label">检查间隔</span><span class="${PREFIX}-val">${this.config.interval / 1000}秒</span></div>
+        <div class="${PREFIX}-row"><span class="${PREFIX}-label">检查间隔</span><span class="${PREFIX}-val">${formatDuration(this.config.interval, this.config.intervalUnit)}</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">自动收割</span><span class="${PREFIX}-val">${this.config.autoHarvest ? '开' : '关'}</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">自动种植</span><span class="${PREFIX}-val">${this.config.autoPlant ? '开' : '关'}</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">智能选种</span><span class="${PREFIX}-val">${this.config.autoSelectBest ? '开' : '关'}</span></div>
@@ -1136,16 +1177,24 @@ window.WH = window.WH || {};
 
     showSettings() {
       const seeds = this.getAvailableSeeds();
+      const intervalParts = getDurationParts(this.config.interval, this.config.intervalUnit);
       const seedOptions = seeds.map(s =>
         `<option value="${s.id}" ${this.config.selectedSeed === s.id ? 'selected' : ''}>${s.name}</option>`
       ).join('');
 
-      WH.createSettingsModal('农场设置', `
+      const modal = WH.createSettingsModal('农场设置', `
         <div class="${PREFIX}-input-group">
           <div class="${PREFIX}-input-row">
-            <label>检查间隔 (秒)</label>
-            <input type="number" id="inp-interval" value="${this.config.interval / 1000}" min="10">
+            <label>检查间隔</label>
+            <div class="${PREFIX}-input-inline">
+              <input type="number" id="inp-interval" value="${intervalParts.value}" min="1" step="any">
+              <select id="sel-interval-unit">
+                <option value="s" ${intervalParts.unit === 's' ? 'selected' : ''}>秒</option>
+                <option value="ms" ${intervalParts.unit === 'ms' ? 'selected' : ''}>毫秒</option>
+              </select>
+            </div>
           </div>
+          <div class="${PREFIX}-hint">单位可选秒/毫秒，切换会自动换算</div>
           <div class="${PREFIX}-input-row">
             <label>最低余额 (0=不限)</label>
             <input type="number" id="inp-min-balance" value="${this.config.minBalance}" min="0">
@@ -1186,7 +1235,15 @@ window.WH = window.WH || {};
           </div>
         </div>
       `, () => {
-        this.config.interval = Math.max(10, parseInt(document.getElementById('inp-interval').value) || 30) * 1000;
+        this.config.intervalUnit = document.getElementById('sel-interval-unit').value;
+        this.config.interval = Math.max(
+          10000,
+          toMilliseconds(
+            document.getElementById('inp-interval').value,
+            this.config.intervalUnit,
+            this.config.interval
+          )
+        );
         this.config.minBalance = Math.max(0, parseInt(document.getElementById('inp-min-balance').value) || 0);
         this.config.maxPlantCount = Math.max(0, parseInt(document.getElementById('inp-max-plant').value) || 0);
         this.config.autoHarvest = document.getElementById('tog-harvest').classList.contains('active');
@@ -1199,6 +1256,24 @@ window.WH = window.WH || {};
           clearInterval(this.intervalId);
           this.intervalId = setInterval(() => this.loop(), this.config.interval);
         }
+      });
+
+      if (!modal) return;
+      const intervalInput = modal.querySelector('#inp-interval');
+      const intervalUnitSelect = modal.querySelector('#sel-interval-unit');
+      intervalUnitSelect.dataset.prevUnit = intervalUnitSelect.value;
+      intervalUnitSelect.addEventListener('change', () => {
+        const prevUnit = intervalUnitSelect.dataset.prevUnit;
+        const nextUnit = intervalUnitSelect.value;
+        if (prevUnit === nextUnit) return;
+        const currentValue = parseFloat(intervalInput.value);
+        if (Number.isFinite(currentValue)) {
+          const converted = prevUnit === 's' && nextUnit === 'ms'
+            ? currentValue * 1000
+            : currentValue / 1000;
+          intervalInput.value = normalizeDurationValue(converted);
+        }
+        intervalUnitSelect.dataset.prevUnit = nextUnit;
       });
 
       document.getElementById('tog-harvest').onclick = (e) => e.target.classList.toggle('active');

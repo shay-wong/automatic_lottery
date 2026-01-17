@@ -7,12 +7,50 @@ window.WH = window.WH || {};
 (function () {
   const PREFIX = WH.PREFIX || 'wh';
 
+  const formatDuration = (ms, unit) => {
+    if (unit === 's') {
+      const seconds = ms / 1000;
+      const secondsText = Number.isInteger(seconds) ? seconds : seconds.toFixed(2);
+      return `${secondsText}秒`;
+    }
+    if (unit === 'ms') {
+      return `${ms}毫秒`;
+    }
+    if (ms % 1000 === 0) return `${ms / 1000}秒`;
+    return `${ms}毫秒`;
+  };
+
+  const normalizeDurationValue = (value) => (
+    Number.isInteger(value) ? value : parseFloat(value.toFixed(3))
+  );
+
+  const getDurationParts = (ms, unit) => {
+    if (unit === 's') {
+      return { value: normalizeDurationValue(ms / 1000), unit: 's' };
+    }
+    if (unit === 'ms') {
+      return { value: normalizeDurationValue(ms), unit: 'ms' };
+    }
+    if (ms % 1000 === 0) {
+      return { value: ms / 1000, unit: 's' };
+    }
+    return { value: ms, unit: 'ms' };
+  };
+
+  const toMilliseconds = (value, unit, fallback) => {
+    const num = parseFloat(value);
+    if (!Number.isFinite(num)) return fallback;
+    const ms = unit === 's' ? num * 1000 : num;
+    return Math.max(1, Math.round(ms));
+  };
+
   const CardsModule = {
     name: '自动抽卡',
     color: '#fbbf24',
     configKey: 'wh_cards_config',
     defaultConfig: {
       interval: 3000,
+      intervalUnit: 's',
       mode: 'single',
       autoStop: true,
       minBalance: 0, // 最低余额阈值，0 表示不限制
@@ -26,7 +64,12 @@ window.WH = window.WH || {};
       this.config = { ...this.defaultConfig };
       try {
         const saved = localStorage.getItem(this.configKey);
-        if (saved) this.config = { ...this.defaultConfig, ...JSON.parse(saved) };
+        if (saved) {
+          this.config = { ...this.defaultConfig, ...JSON.parse(saved) };
+          if (!this.config.intervalUnit) {
+            this.config.intervalUnit = this.config.interval % 1000 === 0 ? 's' : 'ms';
+          }
+        }
       } catch (e) {}
     },
 
@@ -134,7 +177,7 @@ window.WH = window.WH || {};
       const modeText = this.config.mode === 'ten' ? '十连' : '单抽';
       const minBalText = this.config.minBalance > 0 ? `${this.config.minBalance}` : '不限';
       return `
-        <div class="${PREFIX}-row"><span class="${PREFIX}-label">抽卡间隔</span><span class="${PREFIX}-val">${this.config.interval / 1000}秒</span></div>
+        <div class="${PREFIX}-row"><span class="${PREFIX}-label">抽卡间隔</span><span class="${PREFIX}-val">${formatDuration(this.config.interval, this.config.intervalUnit)}</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">抽卡模式</span><span class="${PREFIX}-val">${modeText}</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">自动停止</span><span class="${PREFIX}-val">${this.config.autoStop ? '开' : '关'}</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">最低余额</span><span class="${PREFIX}-val">${minBalText}</span></div>
@@ -151,12 +194,20 @@ window.WH = window.WH || {};
     },
 
     showSettings() {
-      WH.createSettingsModal('抽卡设置', `
+      const intervalParts = getDurationParts(this.config.interval, this.config.intervalUnit);
+      const modal = WH.createSettingsModal('抽卡设置', `
         <div class="${PREFIX}-input-group">
           <div class="${PREFIX}-input-row">
-            <label>抽卡间隔 (秒)</label>
-            <input type="number" id="inp-interval" value="${this.config.interval / 1000}" min="1">
+            <label>抽卡间隔</label>
+            <div class="${PREFIX}-input-inline">
+              <input type="number" id="inp-interval" value="${intervalParts.value}" min="1" step="any">
+              <select id="sel-interval-unit">
+                <option value="s" ${intervalParts.unit === 's' ? 'selected' : ''}>秒</option>
+                <option value="ms" ${intervalParts.unit === 'ms' ? 'selected' : ''}>毫秒</option>
+              </select>
+            </div>
           </div>
+          <div class="${PREFIX}-hint">单位可选秒/毫秒，切换会自动换算</div>
           <div class="${PREFIX}-input-row">
             <label>最低余额 (0=不限)</label>
             <input type="number" id="inp-min-balance" value="${this.config.minBalance}" min="0">
@@ -178,7 +229,12 @@ window.WH = window.WH || {};
           </div>
         </div>
       `, () => {
-        this.config.interval = Math.max(1, parseInt(document.getElementById('inp-interval').value) || 3) * 1000;
+        this.config.intervalUnit = document.getElementById('sel-interval-unit').value;
+        this.config.interval = toMilliseconds(
+          document.getElementById('inp-interval').value,
+          this.config.intervalUnit,
+          this.config.interval
+        );
         this.config.minBalance = Math.max(0, parseInt(document.getElementById('inp-min-balance').value) || 0);
         this.config.mode = document.getElementById('sel-mode').value;
         this.config.autoStop = document.getElementById('tog-autostop').classList.contains('active');
@@ -189,6 +245,23 @@ window.WH = window.WH || {};
         }
       });
 
+      if (!modal) return;
+      const intervalInput = modal.querySelector('#inp-interval');
+      const intervalUnitSelect = modal.querySelector('#sel-interval-unit');
+      intervalUnitSelect.dataset.prevUnit = intervalUnitSelect.value;
+      intervalUnitSelect.addEventListener('change', () => {
+        const prevUnit = intervalUnitSelect.dataset.prevUnit;
+        const nextUnit = intervalUnitSelect.value;
+        if (prevUnit === nextUnit) return;
+        const currentValue = parseFloat(intervalInput.value);
+        if (Number.isFinite(currentValue)) {
+          const converted = prevUnit === 's' && nextUnit === 'ms'
+            ? currentValue * 1000
+            : currentValue / 1000;
+          intervalInput.value = normalizeDurationValue(converted);
+        }
+        intervalUnitSelect.dataset.prevUnit = nextUnit;
+      });
       document.getElementById('tog-autostop').onclick = (e) => e.target.classList.toggle('active');
     }
   };

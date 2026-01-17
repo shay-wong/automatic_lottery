@@ -16,13 +16,24 @@
     interval: 6000,
     mode: '单抽',
     paidLimit: 400,
-    timeout: 10000
+    timeout: 10000,
+    intervalUnit: 's',
+    timeoutUnit: 's'
   };
 
   let CONFIG = { ...DEFAULT_CONFIG };
   try {
     const saved = localStorage.getItem('acd_config');
-    if (saved) CONFIG = { ...DEFAULT_CONFIG, ...JSON.parse(saved) };
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      CONFIG = { ...DEFAULT_CONFIG, ...parsed };
+      if (!CONFIG.intervalUnit) {
+        CONFIG.intervalUnit = CONFIG.interval % 1000 === 0 ? 's' : 'ms';
+      }
+      if (!CONFIG.timeoutUnit) {
+        CONFIG.timeoutUnit = CONFIG.timeout % 1000 === 0 ? 's' : 'ms';
+      }
+    }
   } catch (e) {}
 
   let isRunning = false;
@@ -31,6 +42,62 @@
 
   function saveConfig() {
     localStorage.setItem('acd_config', JSON.stringify(CONFIG));
+  }
+
+  function formatDuration(ms, unit) {
+    if (unit === 's') {
+      const seconds = ms / 1000;
+      const secondsText = Number.isInteger(seconds) ? seconds : seconds.toFixed(2);
+      return `${secondsText}秒`;
+    }
+    if (unit === 'ms') {
+      return `${ms}毫秒`;
+    }
+    if (ms % 1000 === 0) return `${ms / 1000}秒`;
+    return `${ms}毫秒`;
+  }
+
+  function normalizeDurationValue(value) {
+    return Number.isInteger(value) ? value : parseFloat(value.toFixed(3));
+  }
+
+  function getDurationParts(ms, unit) {
+    if (unit === 's') {
+      return { value: normalizeDurationValue(ms / 1000), unit: 's' };
+    }
+    if (unit === 'ms') {
+      return { value: normalizeDurationValue(ms), unit: 'ms' };
+    }
+    if (ms % 1000 === 0) {
+      return { value: ms / 1000, unit: 's' };
+    }
+    return { value: ms, unit: 'ms' };
+  }
+
+  function toMilliseconds(value, unit, fallback) {
+    const num = parseFloat(value);
+    if (!Number.isFinite(num)) return fallback;
+    const ms = unit === 's' ? num * 1000 : num;
+    return Math.max(1, Math.round(ms));
+  }
+
+  function autoSizeSelect(select) {
+    if (!select) return;
+    const style = window.getComputedStyle(select);
+    const probe = document.createElement('span');
+    probe.style.position = 'absolute';
+    probe.style.visibility = 'hidden';
+    probe.style.whiteSpace = 'nowrap';
+    probe.style.font = style.font;
+    probe.textContent = select.options[select.selectedIndex]?.textContent || '';
+    document.body.appendChild(probe);
+    const textWidth = Math.ceil(probe.getBoundingClientRect().width);
+    const paddingLeft = parseFloat(style.paddingLeft) || 0;
+    const paddingRight = parseFloat(style.paddingRight) || 0;
+    const arrowWidth = 30;
+    probe.remove();
+    const width = Math.max(90, textWidth + paddingLeft + paddingRight + arrowWidth);
+    select.style.width = `${width}px`;
   }
 
   function getPaidUsed() {
@@ -141,23 +208,38 @@
         background: rgba(0,0,0,0.4); backdrop-filter: blur(10px);
       }
       .acd-modal {
-        position: relative; width: 280px;
+        position: relative; width: 360px; min-width: 320px; min-height: 220px;
+        max-width: calc(100vw - 24px); max-height: calc(100vh - 24px);
         background: rgba(30,30,30,0.9); backdrop-filter: blur(40px);
         border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+        resize: both; overflow: hidden; display: flex; flex-direction: column;
       }
-      .acd-modal-header { padding: 16px; text-align: center; }
+      .acd-modal-header { padding: 16px; text-align: center; flex: 0 0 auto; }
       .acd-modal-title { font-weight: 600; font-size: 16px; color: #fff; }
-      .acd-modal-body { padding: 0 16px 16px; }
+      .acd-modal-body { padding: 0 16px 16px; flex: 1 1 auto; overflow: auto; }
       .acd-input-group { background: rgba(255,255,255,0.08); border-radius: 10px; overflow: hidden; }
-      .acd-input-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; }
-      .acd-input-row label { font-size: 14px; color: #fff; }
-      .acd-input-row input, .acd-input-row select {
-        width: 80px; background: transparent; border: none;
+      .acd-input-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 14px; }
+      .acd-input-row label {
+        font-size: 14px; color: #fff; flex: 0 0 100px;
+        text-align: left; white-space: nowrap;
+      }
+      .acd-input-row input {
+        width: 120px; background: transparent; border: none;
         color: #0a84ff; text-align: right; font-size: 15px; outline: none;
       }
+      .acd-input-row select {
+        background: transparent; border: none;
+        color: #0a84ff; text-align: right; font-size: 15px; outline: none;
+        text-align-last: right; width: auto; min-width: 0;
+      }
+      .acd-input-inline select { flex: 0 0 auto; }
       .acd-input-row select { width: 90px; }
+      .acd-input-inline { display: flex; align-items: center; gap: 6px; flex: 1 1 auto; min-width: 0; justify-content: flex-end; }
+      .acd-input-inline input { width: 120px; min-width: 100px; }
+      .acd-input-inline select { width: 70px; }
+      .acd-hint { font-size: 12px; color: rgba(255,255,255,0.6); margin: 6px 14px 0; }
       .acd-divider { height: 1px; background: rgba(84,84,88,0.5); margin-left: 14px; }
-      .acd-modal-footer { display: flex; border-top: 1px solid rgba(84,84,88,0.5); }
+      .acd-modal-footer { display: flex; border-top: 1px solid rgba(84,84,88,0.5); flex: 0 0 auto; }
       .acd-modal-btn {
         flex: 1; height: 44px; border: none; background: transparent;
         font-size: 16px; cursor: pointer; color: #0a84ff;
@@ -236,9 +318,9 @@
   function updateConfigDisplay() {
     document.getElementById('acd-config').innerHTML = `
       <div class="acd-row"><span class="acd-label">抽卡模式</span><span class="acd-val">${CONFIG.mode}</span></div>
-      <div class="acd-row"><span class="acd-label">间隔时间</span><span class="acd-val">${CONFIG.interval / 1000}秒</span></div>
+      <div class="acd-row"><span class="acd-label">间隔时间</span><span class="acd-val">${formatDuration(CONFIG.interval, CONFIG.intervalUnit)}</span></div>
       <div class="acd-row"><span class="acd-label">付费上限</span><span class="acd-val">${CONFIG.paidLimit}次</span></div>
-      <div class="acd-row"><span class="acd-label">超时时间</span><span class="acd-val">${CONFIG.timeout / 1000}秒</span></div>
+      <div class="acd-row"><span class="acd-label">超时时间</span><span class="acd-val">${formatDuration(CONFIG.timeout, CONFIG.timeoutUnit)}</span></div>
     `;
   }
 
@@ -246,6 +328,8 @@
     const existing = document.getElementById('acd-settings');
     if (existing) existing.remove();
 
+    const intervalParts = getDurationParts(CONFIG.interval, CONFIG.intervalUnit);
+    const timeoutParts = getDurationParts(CONFIG.timeout, CONFIG.timeoutUnit);
     const modal = document.createElement('div');
     modal.id = 'acd-settings';
     modal.innerHTML = `
@@ -263,8 +347,14 @@
             </div>
             <div class="acd-divider"></div>
             <div class="acd-input-row">
-              <label>间隔 (秒)</label>
-              <input type="number" id="inp-interval" value="${CONFIG.interval / 1000}" min="1">
+              <label>间隔</label>
+              <div class="acd-input-inline">
+                <input type="number" id="inp-interval" value="${intervalParts.value}" min="1" step="any">
+                <select id="sel-interval-unit">
+                  <option value="s" ${intervalParts.unit === 's' ? 'selected' : ''}>秒</option>
+                  <option value="ms" ${intervalParts.unit === 'ms' ? 'selected' : ''}>毫秒</option>
+                </select>
+              </div>
             </div>
             <div class="acd-divider"></div>
             <div class="acd-input-row">
@@ -273,9 +363,16 @@
             </div>
             <div class="acd-divider"></div>
             <div class="acd-input-row">
-              <label>超时 (秒)</label>
-              <input type="number" id="inp-timeout" value="${CONFIG.timeout / 1000}" min="1">
+              <label>超时</label>
+              <div class="acd-input-inline">
+                <input type="number" id="inp-timeout" value="${timeoutParts.value}" min="1" step="any">
+                <select id="sel-timeout-unit">
+                  <option value="s" ${timeoutParts.unit === 's' ? 'selected' : ''}>秒</option>
+                  <option value="ms" ${timeoutParts.unit === 'ms' ? 'selected' : ''}>毫秒</option>
+                </select>
+              </div>
             </div>
+            <div class="acd-hint">单位可选秒/毫秒，切换会自动换算</div>
           </div>
         </div>
         <div class="acd-modal-footer">
@@ -287,12 +384,58 @@
     document.body.appendChild(modal);
 
     modal.querySelector('.acd-backdrop').onclick = () => modal.remove();
+    const intervalInput = document.getElementById('inp-interval');
+    const intervalUnitSelect = document.getElementById('sel-interval-unit');
+    const timeoutInput = document.getElementById('inp-timeout');
+    const timeoutUnitSelect = document.getElementById('sel-timeout-unit');
+    intervalUnitSelect.dataset.prevUnit = intervalUnitSelect.value;
+    timeoutUnitSelect.dataset.prevUnit = timeoutUnitSelect.value;
+    autoSizeSelect(intervalUnitSelect);
+    autoSizeSelect(timeoutUnitSelect);
+    intervalUnitSelect.addEventListener('change', () => {
+      const prevUnit = intervalUnitSelect.dataset.prevUnit;
+      const nextUnit = intervalUnitSelect.value;
+      if (prevUnit === nextUnit) return;
+      const currentValue = parseFloat(intervalInput.value);
+      if (Number.isFinite(currentValue)) {
+        const converted = prevUnit === 's' && nextUnit === 'ms'
+          ? currentValue * 1000
+          : currentValue / 1000;
+        intervalInput.value = normalizeDurationValue(converted);
+      }
+      intervalUnitSelect.dataset.prevUnit = nextUnit;
+      autoSizeSelect(intervalUnitSelect);
+    });
+    timeoutUnitSelect.addEventListener('change', () => {
+      const prevUnit = timeoutUnitSelect.dataset.prevUnit;
+      const nextUnit = timeoutUnitSelect.value;
+      if (prevUnit === nextUnit) return;
+      const currentValue = parseFloat(timeoutInput.value);
+      if (Number.isFinite(currentValue)) {
+        const converted = prevUnit === 's' && nextUnit === 'ms'
+          ? currentValue * 1000
+          : currentValue / 1000;
+        timeoutInput.value = normalizeDurationValue(converted);
+      }
+      timeoutUnitSelect.dataset.prevUnit = nextUnit;
+      autoSizeSelect(timeoutUnitSelect);
+    });
     document.getElementById('btn-cancel').onclick = () => modal.remove();
     document.getElementById('btn-save').onclick = () => {
       CONFIG.mode = document.getElementById('inp-mode').value;
-      CONFIG.interval = Math.max(1, parseInt(document.getElementById('inp-interval').value) || 6) * 1000;
+      CONFIG.intervalUnit = document.getElementById('sel-interval-unit').value;
+      CONFIG.interval = toMilliseconds(
+        document.getElementById('inp-interval').value,
+        CONFIG.intervalUnit,
+        CONFIG.interval
+      );
       CONFIG.paidLimit = Math.max(0, parseInt(document.getElementById('inp-limit').value) || 400);
-      CONFIG.timeout = Math.max(1, parseInt(document.getElementById('inp-timeout').value) || 10) * 1000;
+      CONFIG.timeoutUnit = document.getElementById('sel-timeout-unit').value;
+      CONFIG.timeout = toMilliseconds(
+        document.getElementById('inp-timeout').value,
+        CONFIG.timeoutUnit,
+        CONFIG.timeout
+      );
       saveConfig();
       updateConfigDisplay();
       if (isRunning) {
