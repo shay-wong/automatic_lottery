@@ -313,6 +313,12 @@ window.WH = window.WH || {};
   }
 
   function createPanel() {
+    // 防止重复创建面板
+    if (document.getElementById(`${PREFIX}-panel`)) {
+      console.log('[WindHub] 面板已存在，跳过创建');
+      return;
+    }
+
     injectBaseStyles();
 
     const panelStateKey = `${PREFIX}_panel_state_${currentModule?.configKey || 'default'}`;
