@@ -12,7 +12,7 @@
 
 ## 功能
 
-### auto-windhub.js
+### auto-windhub.js 使用
 
 WindHub 福利站自动化助手，根据页面自动加载对应功能模块：
 

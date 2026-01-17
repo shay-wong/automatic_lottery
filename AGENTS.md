@@ -8,7 +8,7 @@ code in this repository.
 这是一个浏览器用户脚本（Tampermonkey/Greasemonkey）项目，包含以下自动化脚本：
 
 | 脚本文件 | 功能 | 适用网站 |
-|---------|------|---------|
+| --- | --- | --- |
 | `auto-windhub.user.js` | WindHub 自动化助手（农场、抽卡、打砖块） | wcdk.224442.xyz |
 | `auto-slot-machine.user.js` | 自动老虎机抽奖 | KYX、莹のapi 加油站 |
 | `auto-card-draw.user.js` | 自动抽卡 | 黑与白抽卡网站 |
@@ -85,9 +85,11 @@ UI 创建和事件绑定
 
 - `auto-windhub.local.user.js` 由脚本自动生成，避免手动同步
 - 修改 `auto-windhub.user.js` 后运行：
+
   ```bash
   node scripts/gen-windhub-userscripts.js
   ```
+
 - 本地脚本使用 `file:///.../src/*.js`，路径变更时重新生成即可
 
 ### 发布流程
@@ -140,7 +142,8 @@ UI 创建和事件绑定
 2. **README.md**（如存在）：
    - 更新脚本列表和功能说明
    - 更新安装和使用说明
-   - 文档需符合 markdownlint 规范（如 MD032、MD060）
+   - 文档需符合 markdownlint（markdownlint-cli2）规则（如 MD032、MD060）
+   - 提交前可执行 `npx markdownlint-cli2 "**/*.md"` 进行校验
 
 3. **脚本元数据**：
    - 确保 `@name`、`@description`、`@version` 准确

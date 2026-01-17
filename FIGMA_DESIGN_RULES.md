@@ -5,6 +5,7 @@
 ## 1. 设计令牌（Design Tokens）
 
 ### 颜色系统
+
 ```javascript
 // 主色调 - iOS 风格
 const colors = {
@@ -43,6 +44,7 @@ const colors = {
 ```
 
 ### 排版系统
+
 ```javascript
 const typography = {
   fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif',
@@ -67,6 +69,7 @@ const typography = {
 ```
 
 ### 间距系统
+
 ```javascript
 const spacing = {
   xs: '6px',    // 小间距（图标间距、状态点）
@@ -78,6 +81,7 @@ const spacing = {
 ```
 
 ### 圆角系统
+
 ```javascript
 const borderRadius = {
   full: '99px',   // 完全圆角（Toast、圆形按钮）
@@ -89,6 +93,7 @@ const borderRadius = {
 ```
 
 ### 阴影系统
+
 ```javascript
 const shadows = {
   panel: '0 16px 32px rgba(0,0,0,0.4)',
@@ -98,6 +103,7 @@ const shadows = {
 ```
 
 ### 毛玻璃效果
+
 ```javascript
 const blur = {
   light: 'blur(10px)',   // 轻度模糊（背景遮罩）
@@ -110,11 +116,14 @@ const blur = {
 ## 2. 组件库
 
 ### 组件位置
+
 所有 UI 组件都内联在各自的用户脚本文件中：
+
 - `auto-card-draw.user.js` - 抽卡脚本组件
 - `auto-slot-machine.user.js` - 老虎机脚本组件
 
 ### 组件架构
+
 采用原生 JavaScript + 动态 DOM 创建模式：
 
 ```javascript
@@ -136,6 +145,7 @@ function createComponent() {
 ### 核心组件
 
 #### 悬浮面板（Panel）
+
 ```javascript
 // 特性：可拖拽、可最小化、固定定位
 #acd-panel / #asm-panel {
@@ -151,6 +161,7 @@ function createComponent() {
 ```
 
 #### Toast 通知
+
 ```javascript
 // 特性：自动消失、居中显示、动画过渡
 .acd-toast / .asm-toast {
@@ -166,6 +177,7 @@ function createComponent() {
 ```
 
 #### 模态框（Modal）
+
 ```javascript
 // 特性：全屏遮罩、居中显示、iOS 风格
 #acd-settings / #asm-settings {
@@ -181,6 +193,7 @@ function createComponent() {
 ```
 
 #### 按钮
+
 ```javascript
 // 主要按钮
 .acd-btn / .asm-btn {
@@ -202,15 +215,18 @@ function createComponent() {
 ## 3. 框架和库
 
 ### UI 框架
+
 - **原生 JavaScript（Vanilla JS）** - 无框架依赖
 - **ES6+ 语法** - 箭头函数、模板字符串、解构
 
 ### 样式方法
+
 - **内联样式注入** - 通过 `<style>` 标签动态注入
 - **无 CSS 预处理器** - 纯 CSS
 - **无 CSS-in-JS 库** - 原生字符串模板
 
 ### 构建系统
+
 - **无构建步骤** - 直接运行的用户脚本
 - **无打包工具** - 单文件部署
 - **自动更新** - 通过 `@updateURL` 和 `@downloadURL`
@@ -218,11 +234,13 @@ function createComponent() {
 ## 4. 资源管理
 
 ### 资源存储
+
 - **无外部资源** - 所有样式和逻辑都内联在脚本中
 - **无图片/图标文件** - 使用 Unicode 符号（▶、⏹、−、+）
 - **无 CDN** - 完全自包含
 
 ### 配置持久化
+
 ```javascript
 // 使用 localStorage 存储用户配置
 localStorage.setItem('acd_config', JSON.stringify(CONFIG));
@@ -232,13 +250,16 @@ localStorage.getItem('acd_config');
 ## 5. 图标系统
 
 ### 图标来源
+
 使用 Unicode 字符作为图标：
+
 - `▶` - 播放/开始
 - `⏹` - 停止
 - `−` - 最小化
 - `+` - 展开
 
 ### 图标使用
+
 ```javascript
 // 直接在 HTML 中使用
 <button>▶</button>
@@ -248,12 +269,14 @@ localStorage.getItem('acd_config');
 ## 6. 样式方法
 
 ### CSS 方法论
+
 - **BEM 命名约定的变体** - 使用前缀隔离样式
 - **类名前缀**：
   - `acd-*` - 自动抽卡脚本
   - `asm-*` - 自动老虎机脚本
 
 ### 样式注入模式
+
 ```javascript
 function injectStyles() {
   const style = document.createElement('style');
@@ -265,11 +288,13 @@ function injectStyles() {
 ```
 
 ### 响应式设计
+
 - **固定宽度** - 面板使用固定像素宽度
 - **最小化状态** - 通过 `.minimized` 类切换布局
 - **移动端适配** - 目标网站为移动端（375px 宽度）
 
 ### 全局样式
+
 ```javascript
 // 字体平滑
 -webkit-font-smoothing: antialiased;
@@ -284,7 +309,7 @@ transition: all 0.2s;
 
 ## 7. 项目结构
 
-```
+```text
 automatic_lottery/
 ├── auto-card-draw.user.js      # 自动抽卡脚本（完整独立）
 ├── auto-slot-machine.user.js   # 自动老虎机脚本（完整独立）
@@ -294,6 +319,7 @@ automatic_lottery/
 ```
 
 ### 代码组织模式
+
 每个脚本文件遵循相同的结构：
 
 ```javascript
@@ -336,11 +362,13 @@ automatic_lottery/
 ### 从 Figma 设计生成代码时的规则
 
 #### 布局转换
+
 - **Frame → `<div>`** - 使用 flexbox 布局
 - **Auto Layout → Flexbox** - 保持间距和对齐
 - **Fixed Position → `position: fixed`** - 悬浮元素
 
 #### 样式转换
+
 ```javascript
 // Figma 毛玻璃效果 → CSS backdrop-filter
 background: rgba(28,28,30,0.85);
@@ -354,11 +382,13 @@ border-radius: 18px;
 ```
 
 #### 交互转换
+
 - **Hover → `:hover` 伪类**
 - **Active → `:active` 伪类**
 - **Disabled → `:disabled` 或 `[disabled]`**
 
 #### 动画转换
+
 ```javascript
 // Figma 过渡 → CSS transition
 transition: all 0.3s ease;
@@ -368,16 +398,19 @@ transform: translateX(-50%) translateY(0);
 ```
 
 ### 命名约定
+
 - **组件 ID**：`{prefix}-{component}` (如 `acd-panel`)
 - **类名**：`{prefix}-{element}` (如 `acd-btn`)
 - **状态类**：`.minimized`, `.running`, `.show`
 
 ### 颜色使用优先级
+
 1. 使用 `rgba()` 实现透明度
 2. 使用十六进制颜色表示不透明色
 3. 保持 iOS 风格的颜色语义
 
 ### 间距规范
+
 - 使用 `padding` 而非 `margin` 控制内部间距
 - 使用 `gap` 属性处理 flexbox 子元素间距
 - 按钮之间使用 `margin-bottom` 分隔
@@ -385,21 +418,25 @@ transform: translateX(-50%) translateY(0);
 ## 9. 最佳实践
 
 ### 性能优化
+
 - 使用 `requestAnimationFrame` 触发动画
 - 使用 `setTimeout` 延迟移除 DOM 元素
 - 避免频繁的 DOM 查询，缓存选择器结果
 
 ### 可访问性
+
 - 使用语义化的按钮元素 `<button>`
 - 提供清晰的视觉反馈（`:active` 状态）
 - 使用足够的颜色对比度
 
 ### 浏览器兼容性
+
 - 使用 `-webkit-` 前缀支持 Safari
 - 使用 `backdrop-filter` 需要现代浏览器
 - 测试目标：Chrome、Firefox、Safari（桌面和移动端）
 
 ### 代码风格
+
 - 使用单引号包裹字符串
 - 使用模板字符串构建 HTML
 - 使用箭头函数简化回调
