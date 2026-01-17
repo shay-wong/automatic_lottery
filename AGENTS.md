@@ -140,6 +140,7 @@ UI 创建和事件绑定
 2. **README.md**（如存在）：
    - 更新脚本列表和功能说明
    - 更新安装和使用说明
+   - 文档需符合 markdownlint 规范（如 MD032、MD060）
 
 3. **脚本元数据**：
    - 确保 `@name`、`@description`、`@version` 准确

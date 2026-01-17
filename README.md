@@ -17,18 +17,21 @@
 WindHub 福利站自动化助手，根据页面自动加载对应功能模块：
 
 #### 农场模块（farm.php）
+
 - 自动收割成熟作物
 - 自动在空地播种
 - 可选择种子类型
 - 可配置检查间隔（支持秒/毫秒）
 
 #### 抽卡模块（cards.php）
+
 - 自动单抽/十连抽
 - 可配置抽卡间隔（支持秒/毫秒）
 - 次数用完自动停止
 - 显示抽卡统计
 
 #### 打砖块模块（game.php）
+
 - 自动追踪球位置控制挡板
 - 预测球落点提前移动
 - 自动开始新游戏
@@ -42,6 +45,7 @@ WindHub 福利站自动化助手，根据页面自动加载对应功能模块：
 - 支持手动开启和关闭自动抽奖功能
 - 间隔时间支持秒/毫秒
 - 适用于以下网站：
+
   - [KYX 娱乐站](https://quota.kyx03.de/)（已关闭）
   - [莹のapi 加油站](https://quota.wpgzs.top/)
 
@@ -84,6 +88,7 @@ WindHub 福利站自动化助手，根据页面自动加载对应功能模块：
 
 1. 安装 [Tampermonkey](https://www.tampermonkey.net/) 浏览器扩展
 2. 点击下方链接安装脚本：
+
    - [auto-windhub.user.js](https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/auto-windhub.user.js)
    - [auto-slot-machine.user.js](https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/auto-slot-machine.user.js)
    - [auto-card-draw.user.js](https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/auto-card-draw.user.js)
