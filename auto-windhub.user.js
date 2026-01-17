@@ -17,6 +17,54 @@
 // @grant        GM_getValue
 // ==/UserScript==
 
+// 立即拦截 fetch，必须在 @require 脚本加载前执行
+(function () {
+  const originalFetch = window.fetch;
+  window.fetch = async function (...args) {
+    // 捕获请求中的 CSRF token
+    const options = args[1] || {};
+    const headers = options.headers || {};
+    if (headers['x-csrf-token']) {
+      window._farmCsrfToken = headers['x-csrf-token'];
+      console.log('[自动农场] 捕获到 CSRF token');
+    }
+
+    const response = await originalFetch.apply(this, args);
+    const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
+
+    // 捕获 farm_state API 响应
+    if (url.includes('farm_state')) {
+      try {
+        const cloned = response.clone();
+        const json = await cloned.json();
+        const data = json.data || json;
+        window._farmApiData = {
+          crops: {},
+          plots: data.plots || [],
+          profile: data.profile || {},
+          walletBalance: data.wallet_balance || 0
+        };
+        if (data.crops && Array.isArray(data.crops)) {
+          data.crops.forEach(crop => {
+            window._farmApiData.crops[crop.key] = {
+              name: crop.name,
+              reward: crop.reward,
+              seedCost: crop.seed_cost,
+              growSeconds: crop.grow_seconds,
+              exp: crop.exp,
+              unlocked: crop.unlocked
+            };
+          });
+        }
+        console.log('[自动农场] 拦截到 API 数据:', window._farmApiData);
+      } catch (e) {
+        console.warn('[自动农场] 解析 farm_state 响应失败:', e);
+      }
+    }
+    return response;
+  };
+})();
+
 (function () {
   'use strict';
 
