@@ -66,7 +66,7 @@ window.WH = window.WH || {};
       .${PREFIX}-toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
 
       #${PREFIX}-panel {
-        position: fixed; top: 50px; right: 50px; width: 220px;
+        position: fixed; top: 50px; right: 50px; width: 300px;
         background: rgba(28,28,30,0.85); backdrop-filter: blur(30px);
         border: 1px solid rgba(255,255,255,0.1); border-radius: 18px;
         box-shadow: 0 16px 32px rgba(0,0,0,0.4); z-index: 999999; color: #fff;
@@ -314,8 +314,8 @@ window.WH = window.WH || {};
 
     const panelStateKey = `${PREFIX}_panel_state_${currentModule?.configKey || 'default'}`;
     const panelState = loadConfig(panelStateKey, {
-      left: null,
-      top: null,
+      leftRatio: null,
+      topRatio: null,
       width: null,
       height: null,
       minimized: false
@@ -378,13 +378,6 @@ window.WH = window.WH || {};
     const minBtn = panel.querySelector(`.${PREFIX}-min-btn`);
 
     const applyPanelState = () => {
-      if (typeof panelState.left === 'number') {
-        panel.style.left = panelState.left + 'px';
-        panel.style.right = 'auto';
-      }
-      if (typeof panelState.top === 'number') {
-        panel.style.top = panelState.top + 'px';
-      }
       if (typeof panelState.width === 'number') {
         panel.dataset.expandedWidth = String(panelState.width);
       }
@@ -399,6 +392,28 @@ window.WH = window.WH || {};
       } else {
         if (typeof panelState.width === 'number') panel.style.width = panelState.width + 'px';
         if (typeof panelState.height === 'number') panel.style.height = panelState.height + 'px';
+      }
+
+      let leftRatio = Number.isFinite(panelState.leftRatio) ? panelState.leftRatio : null;
+      let topRatio = Number.isFinite(panelState.topRatio) ? panelState.topRatio : null;
+
+      if (leftRatio === null && typeof panelState.left === 'number') {
+        leftRatio = window.innerWidth ? panelState.left / window.innerWidth : 0;
+      }
+      if (topRatio === null && typeof panelState.top === 'number') {
+        topRatio = window.innerHeight ? panelState.top / window.innerHeight : 0;
+      }
+
+      if (Number.isFinite(leftRatio)) {
+        const maxLeft = Math.max(0, window.innerWidth - panel.offsetWidth);
+        const left = Math.min(Math.max(0, Math.round(window.innerWidth * leftRatio)), maxLeft);
+        panel.style.left = left + 'px';
+        panel.style.right = 'auto';
+      }
+      if (Number.isFinite(topRatio)) {
+        const maxTop = Math.max(0, window.innerHeight - panel.offsetHeight);
+        const top = Math.min(Math.max(0, Math.round(window.innerHeight * topRatio)), maxTop);
+        panel.style.top = top + 'px';
       }
     };
 
@@ -420,9 +435,14 @@ window.WH = window.WH || {};
         if (Number.isFinite(cachedHeight)) height = cachedHeight;
       }
 
+      const viewportWidth = window.innerWidth || 1;
+      const viewportHeight = window.innerHeight || 1;
+      const leftRatio = Math.min(Math.max(rect.left / viewportWidth, 0), 1);
+      const topRatio = Math.min(Math.max(rect.top / viewportHeight, 0), 1);
+
       saveConfig(panelStateKey, {
-        left: Math.round(rect.left),
-        top: Math.round(rect.top),
+        leftRatio,
+        topRatio,
         width: Math.round(width),
         height: Math.round(height),
         minimized: isMinimized
