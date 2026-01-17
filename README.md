@@ -5,10 +5,10 @@
 ## 脚本列表
 
 | 脚本 | 功能 | 适用网站 |
-|-----|------|---------|
+| --- | --- | --- |
 | [auto-windhub.user.js](#auto-windhubjs) | WindHub 自动化助手 | [WindHub 福利站](https://wcdk.224442.xyz/) |
-| [auto-slot-machine.user.js](#auto-slot-machinejs) | 老虎机抽奖 | KYX、莹のapi 加油站 |
-| [auto-card-draw.user.js](#auto-card-drawjs) | 抽卡 | 黑与白抽卡网站 |
+| [auto-slot-machine.user.js](#auto-slot-machinejs) | 老虎机抽奖 | [KYX](https://quota.kyx03.de/) / [莹のapi 加油站](https://quota.wpgzs.top/) |
+| [auto-card-draw.user.js](#auto-card-drawjs) | 抽卡 | [黑与白抽卡网站](https://cdk.hybgzs.com/entertainment/cards/draw) |
 
 ## 功能
 
@@ -85,8 +85,8 @@ WindHub 福利站自动化助手，根据页面自动加载对应功能模块：
 1. 安装 [Tampermonkey](https://www.tampermonkey.net/) 浏览器扩展
 2. 点击下方链接安装脚本：
    - [auto-windhub.user.js](https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/auto-windhub.user.js)
-   - [auto-card-draw.user.js](https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/auto-card-draw.user.js)
    - [auto-slot-machine.user.js](https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/auto-slot-machine.user.js)
+   - [auto-card-draw.user.js](https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/auto-card-draw.user.js)
 
 ## 许可证
 
