@@ -12,11 +12,19 @@ jobs:
   release:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
+    concurrency:
+      group: release-main
+      cancel-in-progress: false
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
       - name: Prepare release
         run: node scripts/release-from-changesets.js --out release-info.json
@@ -28,8 +36,13 @@ jobs:
             echo "has_release=false" >> $GITHUB_OUTPUT
             exit 0
           fi
+          COMMIT_MESSAGE=$(node -e 'console.log(require("./release-info.json").commitMessage || "")')
+          if [ -z "$COMMIT_MESSAGE" ]; then
+            echo "has_release=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
           echo "has_release=true" >> $GITHUB_OUTPUT
-          echo "commit_message=$(node -e 'console.log(require(\"./release-info.json\").commitMessage)')" >> $GITHUB_OUTPUT
+          echo "commit_message=$COMMIT_MESSAGE" >> $GITHUB_OUTPUT
 
       - name: Commit version update
         if: steps.info.outputs.has_release == 'true'
@@ -53,7 +66,7 @@ jobs:
         run: |
           node -e "const info=require('./release-info.json'); info.releases.forEach(r=>console.log([r.tag,r.script,r.notesFile,r.name,r.version].join('|')));" | \
           while IFS='|' read -r tag script notes name version; do
-            gh release create "$tag" "$script" src/*.js \
+            gh release create "$tag" "$script" src/*.js auto-windhub.local.user.js \
               --title "${name} v${version}" \
               --notes-file "$notes"
           done

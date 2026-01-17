@@ -1,0 +1,39 @@
+name: PR Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Lint Markdown
+        run: npx markdownlint-cli2 "**/*.md"
+
+      - name: Verify WindHub local userscript
+        run: |
+          node scripts/gen-windhub-userscripts.js
+          git diff --exit-code -- auto-windhub.local.user.js
+
+      - name: Upload userscript artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: userscripts-${{ github.event.pull_request.number || github.run_id }}
+          path: |
+            auto-*.user.js
+            auto-windhub.local.user.js
+          if-no-files-found: error
