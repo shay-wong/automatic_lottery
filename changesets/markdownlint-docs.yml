@@ -1,6 +1,0 @@
-- script: windhub
-  bump: patch
-- script: card-draw
-  bump: patch
-- script: slot-machine
-  bump: patch
