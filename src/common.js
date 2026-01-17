@@ -70,7 +70,7 @@ window.WH = window.WH || {};
         background: rgba(28,28,30,0.85); backdrop-filter: blur(30px);
         border: 1px solid rgba(255,255,255,0.1); border-radius: 18px;
         box-shadow: 0 16px 32px rgba(0,0,0,0.4); z-index: 999999; color: #fff;
-        overflow: hidden;
+        overflow: hidden; display: flex; flex-direction: column; max-height: calc(100vh - 80px);
       }
       .${PREFIX}-header {
         padding: 14px 16px; display: flex; justify-content: space-between; align-items: center;
@@ -89,7 +89,7 @@ window.WH = window.WH || {};
       .${PREFIX}-header-start { display: none; background: #30d158; border: none; color: #fff; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; font-size: 12px; line-height: 1; }
       #${PREFIX}-panel.minimized.running .${PREFIX}-header-stop { display: block; }
       #${PREFIX}-panel.minimized:not(.running) .${PREFIX}-header-start { display: block; }
-      .${PREFIX}-body { padding: 16px; }
+      .${PREFIX}-body { padding: 16px; overflow-y: auto; overflow-x: hidden; flex: 1 1 auto; min-height: 0; }
 
       .${PREFIX}-config { background: rgba(0,0,0,0.2); border-radius: 10px; padding: 10px 14px; margin-bottom: 14px; }
       .${PREFIX}-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
@@ -306,7 +306,7 @@ window.WH = window.WH || {};
   function createPanel() {
     // 防止重复创建面板
     if (document.getElementById(`${PREFIX}-panel`)) {
-      console.log('[WindHub] 面板已存在，跳过创建');
+      console.log('[自动农场] 面板已存在，跳过创建');
       return;
     }
 

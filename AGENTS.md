@@ -1,7 +1,7 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working
-with code in this repository.
+This file provides guidance to Codex CLI and Claude Code when working with
+code in this repository.
 
 ## 项目概述
 
@@ -80,6 +80,15 @@ UI 创建和事件绑定
 2. 创建新脚本并粘贴代码
 3. 访问对应的 `@match` 网站进行测试
 4. 检查控制台是否有错误信息
+
+### 本地调试脚本（WindHub）
+
+- `auto-windhub.local.user.js` 由脚本自动生成，避免手动同步
+- 修改 `auto-windhub.user.js` 后运行：
+  ```bash
+  node scripts/gen-windhub-userscripts.js
+  ```
+- 本地脚本使用 `file:///.../src/*.js`，路径变更时重新生成即可
 
 ### 发布流程
 

@@ -633,6 +633,109 @@ window.WH = window.WH || {};
       }
     },
 
+    getCropIcon(crop) {
+      const key = String(crop?.key || '');
+      const map = {
+        wheat: '🌾',
+        carrot: '🥕',
+        potato: '🥔',
+        strawberry: '🍓',
+        tomato: '🍅',
+        cabbage: '🥬',
+        corn: '🌽',
+        onion: '🧅',
+        pepper: '🌶️',
+        pumpkin: '🎃',
+        blueberry: '🫐',
+        rice: '🌾',
+        cotton: '🧶',
+      };
+      if (map[key]) return map[key];
+      const name = String(crop?.name || '');
+      return name ? name.slice(0, 1) : '🌱';
+    },
+
+    formatSeconds(seconds) {
+      const total = Math.max(0, Math.floor(Number(seconds) || 0));
+      const mins = Math.floor(total / 60);
+      const secs = total % 60;
+      if (mins > 0) return `${mins}m ${secs}s`;
+      return `${secs}s`;
+    },
+
+    refreshBoardFromState(state) {
+      const board = document.getElementById('farm-board');
+      if (!board || !Array.isArray(state?.plots) || state.plots.length === 0) return;
+
+      const cropMap = {};
+      if (Array.isArray(state.crops)) {
+        state.crops.forEach(crop => {
+          cropMap[crop.key] = crop;
+        });
+      }
+      const fallbackCrops = this.cropsData || window._farmApiData?.crops || {};
+
+      state.plots.forEach(plot => {
+        const plotIndex = plot?.plot_index ?? plot?.plotIndex ?? plot?.index ?? plot?.idx;
+        if (plotIndex === undefined || plotIndex === null) return;
+        const tile = board.querySelector(`.tile[data-plot-index="${plotIndex}"]`);
+        if (!tile) return;
+
+        const cropKey = plot?.crop_key ?? plot?.cropKey ?? plot?.crop?.key;
+        const fallbackCrop = cropKey && fallbackCrops[cropKey]
+          ? { key: cropKey, name: fallbackCrops[cropKey].name }
+          : null;
+        const crop = plot.crop || cropMap[cropKey] || fallbackCrop || null;
+        const cropName = crop?.name || cropKey || '空地';
+        const baseState = String(plot?.state || plot?.status || 'empty');
+
+        let stateKey = baseState;
+        let readyIn = plot?.ready_in_seconds ?? plot?.readyInSeconds ?? plot?.ready_in;
+        let progress = Number(plot?.progress ?? plot?.grow_progress ?? 0);
+        const effectiveGrow = Math.max(1, Number(plot?.effective_grow_seconds ?? plot?.effectiveGrowSeconds ?? 0) || 0);
+
+        if (baseState === 'growing' && readyIn !== null) {
+          readyIn = Math.max(0, Number(readyIn || 0));
+          if (readyIn <= 0) stateKey = 'ready';
+          progress = Math.max(0, Math.min(1, progress || 0));
+          if (!progress && effectiveGrow > 0 && readyIn > 0) {
+            progress = Math.max(0, Math.min(1, 1 - readyIn / effectiveGrow));
+          }
+        } else if (baseState === 'ready') {
+          readyIn = 0;
+          progress = 1;
+        } else {
+          readyIn = null;
+          progress = 0;
+        }
+
+        const cls = ['tile'];
+        if (stateKey === 'empty') cls.push('empty');
+        if (stateKey === 'ready') cls.push('ready');
+        tile.className = cls.join(' ');
+
+        const sprite = tile.querySelector('.sprite');
+        if (sprite) {
+          sprite.className = crop ? 'sprite crop' : 'sprite soil';
+          sprite.textContent = crop ? this.getCropIcon(crop) : '';
+        }
+
+        const info = tile.querySelector('.tile-info');
+        if (info) {
+          let text = cropName;
+          if (stateKey === 'growing') text = `${cropName}: ${this.formatSeconds(readyIn)}`;
+          if (stateKey === 'ready') text = `${cropName}: 可收割`;
+          info.textContent = text;
+        }
+
+        const bar = tile.querySelector('.tile-bar-in');
+        if (bar) {
+          const prog = Math.max(0, Math.min(1, Number(progress || 0)));
+          bar.style.transform = `scaleX(${prog.toFixed(4)})`;
+        }
+      });
+    },
+
     async plant() {
       if (!this.config.autoPlant) return 0;
       const status = this.getFarmStatus();
@@ -755,15 +858,19 @@ window.WH = window.WH || {};
     },
 
     // 更新本地缓存
-    updateLocalCache(state) {
+    async updateLocalCache(state) {
       if (!state) return;
+
+      const hasPlots = Array.isArray(state.plots) && state.plots.length > 0;
+      const hasProfile = state.profile && Object.keys(state.profile).length > 0;
+      const hasWallet = state.wallet_balance !== undefined;
 
       // 更新 window._farmApiData
       window._farmApiData = {
         crops: window._farmApiData?.crops || {},
-        plots: state.plots || [],
-        profile: state.profile || {},
-        walletBalance: state.wallet_balance || 0
+        plots: hasPlots ? state.plots : (window._farmApiData?.plots || []),
+        profile: hasProfile ? state.profile : (window._farmApiData?.profile || {}),
+        walletBalance: hasWallet ? state.wallet_balance : (window._farmApiData?.walletBalance || 0)
       };
 
       // 更新作物数据
@@ -786,6 +893,28 @@ window.WH = window.WH || {};
       // 刷新网页 UI
       if (typeof window.renderState === 'function') {
         window.renderState(state);
+      }
+
+      if (!hasPlots) {
+        await this.refreshFarmState();
+        return;
+      }
+
+      this.refreshBoardFromState(state);
+    },
+
+    async refreshFarmState() {
+      const csrfToken = window._getCsrfToken?.() || window._farmCsrfToken;
+      if (!csrfToken) return;
+      try {
+        await fetch('/api/farm_state.php', {
+          method: 'GET',
+          headers: {
+            'x-csrf-token': csrfToken
+          }
+        });
+      } catch (e) {
+        console.warn('[自动农场] farm_state 刷新失败:', e);
       }
     },
 
@@ -880,6 +1009,7 @@ window.WH = window.WH || {};
         seedName = found?.name || '自动最优';
       }
       const minBalText = this.config.minBalance > 0 ? `${this.config.minBalance}` : '不限';
+      const maxPlantText = this.config.maxPlantCount > 0 ? `${this.config.maxPlantCount}` : '不限';
       const strategyNames = {
         profit: '体力收益优先',
         exp: '体力经验优先',
@@ -896,6 +1026,7 @@ window.WH = window.WH || {};
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">选种策略</span><span class="${PREFIX}-val">${strategyText}</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">种子</span><span class="${PREFIX}-val">${seedName}</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">最低余额</span><span class="${PREFIX}-val">${minBalText}</span></div>
+        <div class="${PREFIX}-row"><span class="${PREFIX}-label">种植数量</span><span class="${PREFIX}-val">${maxPlantText}</span></div>
       `;
     },
 
