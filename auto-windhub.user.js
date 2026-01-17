@@ -13,8 +13,7 @@
 // @require      https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/src/cards.js?v=1.9.16
 // @require      https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/src/brick.js?v=1.9.16
 // @run-at       document-start
-// @grant        GM_setValue
-// @grant        GM_getValue
+// @grant        none
 // ==/UserScript==
 
 // 立即拦截 fetch，必须在 @require 脚本加载前执行

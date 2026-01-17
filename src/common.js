@@ -10,21 +10,12 @@ window.WH = window.WH || {};
   // ============== 存储函数 ==============
   function saveConfig(key, value) {
     const json = JSON.stringify(value);
-    if (typeof GM_setValue === 'function') {
-      GM_setValue(key, json);
-    } else {
-      localStorage.setItem(key, json);
-    }
+    localStorage.setItem(key, json);
   }
 
   function loadConfig(key, defaultValue) {
     try {
-      let json;
-      if (typeof GM_getValue === 'function') {
-        json = GM_getValue(key, null);
-      } else {
-        json = localStorage.getItem(key);
-      }
+      const json = localStorage.getItem(key);
       return json ? { ...defaultValue, ...JSON.parse(json) } : { ...defaultValue };
     } catch (e) {
       return { ...defaultValue };
