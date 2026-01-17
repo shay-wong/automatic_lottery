@@ -68,7 +68,7 @@ UI 创建和事件绑定
 
 ### 修改脚本时的注意事项
 
-1. **版本号管理**：修改代码后必须更新 `@version` 字段，遵循语义化版本
+1. **版本号管理**：不要手动修改 `@version`，由发布流程自动更新
 2. **匹配规则**：`@match` 字段定义脚本运行的网站，修改时需谨慎
 3. **配置兼容性**：添加新配置项时，确保 `DEFAULT_CONFIG` 包含默认值
 4. **样式隔离**：所有 CSS 类名使用前缀（`acd-` 或 `asm-`）避免冲突
@@ -92,29 +92,35 @@ UI 创建和事件绑定
 
 ### 发布流程
 
-本项目使用 GitHub Actions 自动管理版本号和发布，**每个脚本独立版本**：
+本项目使用 GitHub Actions 自动管理版本号和发布，**每个脚本独立版本**，采用 Changeset 风格发布指令：
 
-1. **开发阶段**：正常提交代码，**不需要手动修改** `@version` 字段
+1. **开发分支**：日常开发在 `dev`（或功能分支），合并到 `main` 才会触发发布流程。
 
-2. **发布新版本**：根据脚本创建对应格式的 Git tag
+2. **发布指令**：需要发版时，在 `changesets/` 新建一个 `.yml` 文件，写明要发布的脚本和版本策略：
 
-   | 脚本 | Tag 格式 | 示例 |
-   |------|----------|------|
-   | WindHub 自动化助手 | `windhub-v{版本}` | `windhub-v1.9.0` |
-   | 自动抽卡 | `card-draw-v{版本}` | `card-draw-v1.2.0` |
-   | 自动老虎机 | `slot-machine-v{版本}` | `slot-machine-v1.1.0` |
-
-   ```bash
-   # 示例：发布 WindHub v1.9.0
-   git tag windhub-v1.9.0
-   git push origin windhub-v1.9.0
+   ```yaml
+   - script: windhub
+     bump: patch
+   - script: card-draw
+     bump: minor
+   # 或者指定具体版本
+   - script: slot-machine
+     version: 1.4.2
    ```
 
-3. **自动化处理**：GitHub Actions 会自动：
-   - 更新**对应脚本**的 `@version` 字段
-   - 生成该脚本的 changelog
-   - 创建 GitHub Release
-   - 提交版本更新到 main 分支
+   可用脚本标识：
+   - `windhub`
+   - `card-draw`
+   - `slot-machine`
+
+3. **自动化处理**：合并到 `main` 后，GitHub Actions 会自动：
+   - 读取 `changesets/` 中的发布指令
+   - 更新对应脚本的 `@version` 字段
+   - 更新 WindHub `@require` 的 `?v=` 参数
+   - 生成 `auto-windhub.local.user.js`（如有 WindHub 版本变更）
+   - 提交版本更新到 `main`
+   - 自动创建 tag 并发布 GitHub Release
+   - 删除已消费的 changeset 文件
 
 4. **版本号规范**：遵循语义化版本（SemVer）
    - `MAJOR.MINOR.PATCH`（如 `1.2.3`）

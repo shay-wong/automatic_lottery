@@ -2,16 +2,15 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'windhub-v*'
-      - 'card-draw-v*'
-      - 'slot-machine-v*'
+    branches:
+      - main
 
 permissions:
   contents: write
 
 jobs:
   release:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -19,87 +18,42 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Parse tag info
-        id: parse_tag
+      - name: Prepare release
+        run: node scripts/release-from-changesets.js --out release-info.json
+
+      - name: Check release info
+        id: info
         run: |
-          TAG=${GITHUB_REF#refs/tags/}
-          echo "TAG=$TAG" >> $GITHUB_OUTPUT
-
-          if [[ "$TAG" == windhub-v* ]]; then
-            SCRIPT="auto-windhub.user.js"
-            SCRIPT_NAME="WindHub 自动化助手"
-            VERSION=${TAG#windhub-v}
-            PREFIX="windhub"
-          elif [[ "$TAG" == card-draw-v* ]]; then
-            SCRIPT="auto-card-draw.user.js"
-            SCRIPT_NAME="自动抽卡"
-            VERSION=${TAG#card-draw-v}
-            PREFIX="card-draw"
-          elif [[ "$TAG" == slot-machine-v* ]]; then
-            SCRIPT="auto-slot-machine.user.js"
-            SCRIPT_NAME="自动老虎机"
-            VERSION=${TAG#slot-machine-v}
-            PREFIX="slot-machine"
+          if [ ! -f release-info.json ]; then
+            echo "has_release=false" >> $GITHUB_OUTPUT
+            exit 0
           fi
-
-          echo "SCRIPT=$SCRIPT" >> $GITHUB_OUTPUT
-          echo "SCRIPT_NAME=$SCRIPT_NAME" >> $GITHUB_OUTPUT
-          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-          echo "PREFIX=$PREFIX" >> $GITHUB_OUTPUT
-
-      - name: Update version in script
-        run: |
-          SCRIPT="${{ steps.parse_tag.outputs.SCRIPT }}"
-          VERSION="${{ steps.parse_tag.outputs.VERSION }}"
-
-          if [ -f "$SCRIPT" ]; then
-            # 更新 @version 字段
-            sed -i "s/@version.*$/@version      $VERSION/" "$SCRIPT"
-            # 更新 @require 的版本参数（用于破坏 Tampermonkey 缓存）
-            sed -i "s/\?v=[0-9.]*/?v=$VERSION/g" "$SCRIPT"
-            echo "Updated $SCRIPT to version $VERSION"
-          fi
-
-      - name: Generate changelog
-        id: changelog
-        run: |
-          PREFIX="${{ steps.parse_tag.outputs.PREFIX }}"
-
-          # Get previous tag for this script
-          PREV_TAG=$(git tag -l "${PREFIX}-v*" --sort=-v:refname | sed -n '2p')
-
-          if [ -n "$PREV_TAG" ]; then
-            echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
-            git log --pretty=format:"- %s" $PREV_TAG..HEAD -- "${{ steps.parse_tag.outputs.SCRIPT }}" src/ >> $GITHUB_OUTPUT
-            echo "" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-          else
-            echo "CHANGELOG=Initial release" >> $GITHUB_OUTPUT
-          fi
+          echo "has_release=true" >> $GITHUB_OUTPUT
+          echo "commit_message=$(node -e 'console.log(require(\"./release-info.json\").commitMessage)')" >> $GITHUB_OUTPUT
 
       - name: Commit version update
+        if: steps.info.outputs.has_release == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add *.user.js src/
-          git commit -m "chore: bump ${{ steps.parse_tag.outputs.SCRIPT_NAME }} to v${{ steps.parse_tag.outputs.VERSION }}" || echo "No changes to commit"
+          git add *.user.js src/ auto-windhub.local.user.js changesets/
+          git commit -m "${{ steps.info.outputs.commit_message }}"
           git push origin HEAD:main
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          name: "${{ steps.parse_tag.outputs.SCRIPT_NAME }} v${{ steps.parse_tag.outputs.VERSION }}"
-          body: |
-            ## ${{ steps.parse_tag.outputs.SCRIPT_NAME }} v${{ steps.parse_tag.outputs.VERSION }}
+      - name: Create tags
+        if: steps.info.outputs.has_release == 'true'
+        run: |
+          node -e "const info=require('./release-info.json'); info.releases.forEach(r=>console.log(r.tag));" | while read -r tag; do git tag "$tag"; done
+          git push origin --tags
 
-            ### Changes
-            ${{ steps.changelog.outputs.CHANGELOG }}
-
-            ### Installation
-            Click below to install via Tampermonkey:
-            - [${{ steps.parse_tag.outputs.SCRIPT }}](https://raw.githubusercontent.com/${{ github.repository }}/main/${{ steps.parse_tag.outputs.SCRIPT }})
-          files: |
-            ${{ steps.parse_tag.outputs.SCRIPT }}
-            src/*.js
+      - name: Create GitHub releases
+        if: steps.info.outputs.has_release == 'true'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node -e "const info=require('./release-info.json'); info.releases.forEach(r=>console.log([r.tag,r.script,r.notesFile,r.name,r.version].join('|')));" | \
+          while IFS='|' read -r tag script notes name version; do
+            gh release create "$tag" "$script" src/*.js \
+              --title "${name} v${version}" \
+              --notes-file "$notes"
+          done
