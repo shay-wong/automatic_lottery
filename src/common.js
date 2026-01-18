@@ -322,19 +322,23 @@ window.WH = window.WH || {};
     if (dot) dot.style.background = isRunning ? '#30d158' : 'rgba(255,255,255,0.2)';
   }
 
+  function setRunning(nextState) {
+    if (isRunning === nextState) return;
+    isRunning = nextState;
+    updateBtnState();
+  }
+
   function start() {
     if (!currentModule) return;
-    isRunning = true;
+    setRunning(true);
     currentModule.start();
-    updateBtnState();
     showToast(`开始${currentModule.name}`);
   }
 
   function stop(reason = '已停止') {
     if (!currentModule) return;
-    isRunning = false;
+    setRunning(false);
     currentModule.stop();
-    updateBtnState();
     updateStatus(reason);
   }
 
@@ -613,5 +617,6 @@ window.WH = window.WH || {};
   WH.updateConfigDisplay = updateConfigDisplay;
   WH.init = init;
   WH.isRunning = () => isRunning;
+  WH.setRunning = setRunning;
   WH.stop = stop;
 })();

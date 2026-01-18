@@ -324,6 +324,7 @@ window.WH = window.WH || {};
     start() {
       console.log('[自动打砖块] 启动');
       this.isRunning = true;
+      if (WH.setRunning) WH.setRunning(true);
       this.lastDetectAt = 0;
       this.lastBallX = null;
       this.initCanvas();
@@ -333,6 +334,7 @@ window.WH = window.WH || {};
     stop() {
       if (!this.isRunning) return; // 防止重复停止
       this.isRunning = false;
+      if (WH.setRunning) WH.setRunning(false);
       if (this.animationId) {
         cancelAnimationFrame(this.animationId);
         this.animationId = null;
