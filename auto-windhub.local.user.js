@@ -5,10 +5,10 @@
 // @license      Apache-2.0
 // @homepage     https://github.com/shay-wong/automatic_lottery
 // @match        https://wcdk.224442.xyz/*
-// @require      file:///home/runner/work/automatic_lottery/automatic_lottery/src/common.js
-// @require      file:///home/runner/work/automatic_lottery/automatic_lottery/src/farm.js
-// @require      file:///home/runner/work/automatic_lottery/automatic_lottery/src/cards.js
-// @require      file:///home/runner/work/automatic_lottery/automatic_lottery/src/brick.js
+// @require      file:///Users/Shay/Desktop/Work/GitHub/Own/automatic_lottery/src/common.js
+// @require      file:///Users/Shay/Desktop/Work/GitHub/Own/automatic_lottery/src/farm.js
+// @require      file:///Users/Shay/Desktop/Work/GitHub/Own/automatic_lottery/src/cards.js
+// @require      file:///Users/Shay/Desktop/Work/GitHub/Own/automatic_lottery/src/brick.js
 // @run-at       document-start
 // @grant        none
 // ==/UserScript==
@@ -81,6 +81,54 @@
     }
     return response;
   };
+})();
+
+// Hook 游戏脚本，暴露内部状态
+(function () {
+  if (!window.location.pathname.includes('game.php')) return;
+
+  // 使用 MutationObserver 监听 script 标签
+  const observer = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) {
+        if (node.nodeName === 'SCRIPT' && !node.src && node.textContent) {
+          // 检测是否是游戏脚本
+          if (node.textContent.includes('const state = {') && node.textContent.includes('brick_game_finish')) {
+            console.log('[自动打砖块] 检测到游戏脚本，注入暴露代码');
+
+            // 修改脚本，暴露 state 到 window
+            const originalScript = node.textContent;
+            const modifiedScript = originalScript
+              .replace(
+                'const state = {',
+                'const state = window._brickGameState = {'
+              )
+              .replace(
+                'const logEvent = ',
+                'const logEvent = window._brickLogEvent = '
+              );
+
+            // 阻止原脚本执行
+            node.textContent = '';
+
+            // 创建新脚本执行修改后的代码
+            const newScript = document.createElement('script');
+            newScript.textContent = modifiedScript;
+            node.parentNode.insertBefore(newScript, node.nextSibling);
+
+            console.log('[自动打砖块] 游戏状态已暴露到 window._brickGameState');
+            observer.disconnect();
+            return;
+          }
+        }
+      }
+    }
+  });
+
+  observer.observe(document.documentElement, {
+    childList: true,
+    subtree: true
+  });
 })();
 
 (function () {

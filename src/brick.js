@@ -16,7 +16,7 @@ window.WH = window.WH || {};
       speed: 8,
       maxGames: 0, // 0 表示无限制
       minBalance: 0, // 最低余额阈值，0 表示不限制
-      brickBias: 20, // 0-100，偏向砖块的权重
+      maxLevel: 0, // 最大关卡数，0 表示无限制
     },
     config: null,
     isRunning: false,
@@ -40,6 +40,9 @@ window.WH = window.WH || {};
     lastBallMovedAt: 0,
     lastBrickDetectAt: 0,
     brickTargetX: null,
+    totalBricks: 0, // 总砖块数（从配置读取）
+    remainingBricks: 0, // 剩余砖块数（从 DOM 读取）
+    lastBallStuckAt: 0, // 上次检测到小球卡住的时间
 
     init() {
       this.config = { ...this.defaultConfig };
@@ -166,12 +169,18 @@ window.WH = window.WH || {};
       // 2. 或者 暂停按钮可见 且 开始按钮被禁用
       const isPlaying = pauseVisible && (!startVisible || startDisabled);
 
-      // 每 60 帧输出一次日志
-      if (this.logCounter % 60 === 0) {
+      // 减少日志输出频率：每 300 帧（约 5 秒）输出一次
+      if (this.logCounter % 300 === 0) {
         console.log('[自动打砖块] 游戏状态: pause=', pauseVisible, 'start=', startVisible, 'startDisabled=', startDisabled, 'isPlaying=', isPlaying);
       }
       this.logCounter++;
       return isPlaying;
+    },
+
+    isGameFinished() {
+      // 检测游戏是否结束：开始按钮可见且未禁用
+      const startBtn = this.findStartButton();
+      return startBtn && !startBtn.disabled && this.isElementVisible(startBtn);
     },
 
     canStartGame() {
@@ -189,6 +198,8 @@ window.WH = window.WH || {};
       if (startBtn && !startBtn.disabled && this.isElementVisible(startBtn)) {
         console.log('[自动打砖块] 点击开始按钮');
         this.lastStartTime = Date.now();
+        this.totalBricks = 0; // 重置总砖块数，等待新游戏配置
+        this.remainingBricks = 0;
         startBtn.click();
         this.stats.games++;
         WH.updateStatsDisplay();
@@ -300,6 +311,157 @@ window.WH = window.WH || {};
       return { minX, maxX, width: maxX - minX };
     },
 
+    // 从暴露的游戏状态获取砖块数据
+    getGameState() {
+      return window._brickGameState || null;
+    },
+
+    // 获取存活的砖块列表
+    getAliveBricks() {
+      const state = this.getGameState();
+      if (!state || !Array.isArray(state.bricks)) return [];
+      return state.bricks.filter(b => b.alive);
+    },
+
+    // 获取小球状态
+    getBallState() {
+      const state = this.getGameState();
+      if (!state || !state.ball) return null;
+      return state.ball;
+    },
+
+    // 获取挡板状态
+    getPaddleState() {
+      const state = this.getGameState();
+      if (!state || !state.paddle) return null;
+      return state.paddle;
+    },
+
+    // 计算小球从挡板反弹后的轨迹，预测能击中哪个砖块
+    predictBallPath(paddleX, ball, paddle, bricks) {
+      if (!ball || !paddle || ball.stuck) return null;
+
+      // 模拟小球从挡板反弹
+      const hitX = paddleX + paddle.w / 2;
+      const ballCenterX = ball.x;
+      const offset = (ballCenterX - hitX) / (paddle.w / 2); // -1 到 1
+      const maxAngle = Math.PI / 3; // 60度
+      const angle = offset * maxAngle;
+
+      // 计算反弹后的速度
+      const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+      const vx = Math.sin(angle) * speed;
+      const vy = -Math.abs(Math.cos(angle) * speed);
+
+      // 模拟轨迹，找到第一个击中的砖块
+      let simX = ball.x;
+      let simY = ball.y;
+      let simVx = vx;
+      let simVy = vy;
+      const canvasWidth = this.gameState.canvas?.width || 800;
+      const maxSteps = 500;
+
+      for (let step = 0; step < maxSteps; step++) {
+        simX += simVx;
+        simY += simVy;
+
+        // 墙壁反弹
+        if (simX <= ball.r || simX >= canvasWidth - ball.r) {
+          simVx = -simVx;
+          simX = Math.max(ball.r, Math.min(canvasWidth - ball.r, simX));
+        }
+        if (simY <= ball.r) {
+          simVy = -simVy;
+          simY = ball.r;
+        }
+
+        // 检测砖块碰撞
+        for (const brick of bricks) {
+          if (!brick.alive) continue;
+          if (simX >= brick.x && simX <= brick.x + brick.w &&
+              simY >= brick.y && simY <= brick.y + brick.h) {
+            return brick;
+          }
+        }
+
+        // 如果小球回到底部，停止模拟
+        if (simY > paddle.y) break;
+      }
+
+      return null;
+    },
+
+    // 找到最佳的挡板位置来击中目标砖块
+    findBestPaddlePosition(targetBrick) {
+      const ball = this.getBallState();
+      const paddle = this.getPaddleState();
+      const bricks = this.getAliveBricks();
+
+      if (!ball || !paddle || !targetBrick) return null;
+
+      const canvasWidth = this.gameState.canvas?.width || 800;
+      let bestX = null;
+      let bestDistance = Infinity;
+
+      // 尝试不同的挡板位置
+      for (let x = paddle.w / 2; x < canvasWidth - paddle.w / 2; x += 10) {
+        const hitBrick = this.predictBallPath(x - paddle.w / 2, ball, paddle, bricks);
+        if (hitBrick && hitBrick.idx === targetBrick.idx) {
+          const distance = Math.abs(x - ball.x);
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            bestX = x;
+          }
+        }
+      }
+
+      return bestX;
+    },
+
+    // 选择目标砖块（优先级：宝箱 > 钥匙 > 普通，且优先靠近小球的）
+    selectTargetBrick() {
+      const bricks = this.getAliveBricks();
+      const ball = this.getBallState();
+      const state = this.getGameState();
+
+      if (!bricks.length || !ball) return null;
+
+      const hasKeys = state && state.keys > 0;
+
+      // 按优先级分组
+      const chests = bricks.filter(b => b.t === 'chest' && hasKeys);
+      const keys = bricks.filter(b => b.t === 'key');
+      const normals = bricks.filter(b => b.t === 'normal');
+
+      // 选择最靠近底部的砖块（更容易击中）
+      const selectNearest = (arr) => {
+        if (!arr.length) return null;
+        return arr.reduce((best, b) => (!best || b.y > best.y) ? b : best, null);
+      };
+
+      // 优先级：有钥匙时优先开宝箱，否则优先拿钥匙
+      if (chests.length) return selectNearest(chests);
+      if (keys.length) return selectNearest(keys);
+      return selectNearest(normals);
+    },
+
+    updateBrickCount() {
+      // 从 DOM 读取剩余砖块数（普通砖块 + 钥匙砖块）
+      const normalEl = document.getElementById('stat-normal');
+      const keyEl = document.getElementById('stat-key');
+      const normal = normalEl ? (parseInt(normalEl.textContent) || 0) : 0;
+      const key = keyEl ? (parseInt(keyEl.textContent) || 0) : 0;
+
+      // 如果是新游戏，从配置读取总砖块数
+      if (this.totalBricks === 0 && window._brickGameConfig) {
+        const config = window._brickGameConfig;
+        this.totalBricks = (config.brick_rows || 6) * (config.brick_cols || 10);
+      }
+
+      // 计算剩余砖块数：总数 - 已击碎的普通砖块
+      this.remainingBricks = Math.max(0, this.totalBricks - normal);
+    },
+
     detectBrickTargetX() {
       if (!this.gameState.canvas || !this.gameState.ctx) return null;
       const canvas = this.gameState.canvas;
@@ -369,7 +531,7 @@ window.WH = window.WH || {};
       return Math.min(safeHalf, Math.max(-safeHalf, offset));
     },
 
-    loop() {
+    async loop() {
       if (!this.isRunning) return;
 
       // 检查是否达到局数限制
@@ -395,6 +557,24 @@ window.WH = window.WH || {};
       }
 
       if (!this.isGamePlaying()) {
+        // 检测游戏是否刚结束，需要提交结算
+        const gameFinished = this.isGameFinished();
+
+        // 检查是否达到关卡限制，需要主动结束游戏
+        if (this.config.maxLevel > 0) {
+          const levelEl = document.getElementById('stat-level');
+          const currentLevel = levelEl ? (parseInt(levelEl.textContent) || 0) : 0;
+          if (currentLevel >= this.config.maxLevel) {
+            const finishBtn = document.getElementById('btn-finish');
+            if (finishBtn && !finishBtn.disabled) {
+              console.log('[自动打砖块] 达到关卡限制，点击结束结算');
+              finishBtn.click();
+              // 等待结算完成
+              await new Promise(resolve => setTimeout(resolve, 3000));
+            }
+          }
+        }
+
         if (this.config.autoStart && this.canStartGame()) {
           WH.updateStatus('启动新游戏...');
           this.startNewGame();
@@ -431,6 +611,23 @@ window.WH = window.WH || {};
         const paddleSpan = this.detectPaddleSpan();
         if (paddleSpan) this.lastPaddleSpan = paddleSpan;
       }
+
+      // 检测小球是否卡在挡板上（进入下一关时）
+      const gameState = this.getGameState();
+      const ball = this.getBallState();
+      if (gameState && ball && ball.stuck) {
+        if (this.lastBallStuckAt === 0) {
+          this.lastBallStuckAt = now;
+        } else if (now - this.lastBallStuckAt > 2000) {
+          // 小球卡住超过2秒，发射小球
+          console.log('[自动打砖块] 检测到小球卡住，发射小球');
+          this.pressKey(' ');
+          this.lastBallStuckAt = 0;
+        }
+      } else {
+        this.lastBallStuckAt = 0;
+      }
+
       if (now - this.lastBrickDetectAt > 800) {
         this.lastBrickDetectAt = now;
         const targetX = this.detectBrickTargetX();
@@ -449,36 +646,57 @@ window.WH = window.WH || {};
           && Number.isFinite(this.prevBallY)
           ? this.lastBallY >= this.prevBallY
           : false;
-        let targetBaseX = this.lastBallX;
-        if (movingDown && Number.isFinite(this.prevBallAt) && this.prevBallAt > 0) {
-          const dt = Math.max(1, this.lastBallAt - this.prevBallAt);
-          const vx = (this.lastBallX - (this.prevBallX ?? this.lastBallX)) / dt;
-          const vy = (this.lastBallY - (this.prevBallY ?? this.lastBallY)) / dt;
-          const paddleY = (this.gameState.canvas?.height || 0) - 18;
-          if (vy > 0) {
-            const timeToPaddle = (paddleY - this.lastBallY) / vy;
-            if (timeToPaddle > 0 && Number.isFinite(timeToPaddle)) {
-              let predicted = this.lastBallX + vx * timeToPaddle;
-              const max = width;
-              while (predicted < 0 || predicted > max) {
-                if (predicted < 0) predicted = -predicted;
-                if (predicted > max) predicted = 2 * max - predicted;
+
+        // 尝试使用精确追踪模式（如果游戏状态已暴露）
+        const gameState = this.getGameState();
+        const ball = this.getBallState();
+        const paddle = this.getPaddleState();
+        let targetX = this.lastBallX;
+        let usedPreciseMode = false;
+
+        if (gameState && ball && paddle && !ball.stuck && movingDown) {
+          // 精确模式：使用游戏内部数据
+          const targetBrick = this.selectTargetBrick();
+          if (targetBrick) {
+            const bestX = this.findBestPaddlePosition(targetBrick);
+            if (bestX !== null) {
+              targetX = bestX;
+              usedPreciseMode = true;
+              if (this.logCounter % 120 === 0) {
+                console.log('[自动打砖块] 精确模式 - 目标砖块:', targetBrick.t, targetBrick.idx, '挡板位置:', Math.round(bestX));
               }
-              targetBaseX = predicted;
             }
           }
         }
-        const biasWeight = movingDown
-          ? Math.max(0, Math.min(100, this.config.brickBias || 0)) / 100
-          : 0;
-        const brickBias = Number.isFinite(this.brickTargetX)
-          ? (this.brickTargetX - targetBaseX) * biasWeight
-          : 0;
-        const timeScale = movingDown && Number.isFinite(this.lastBallY)
-          ? Math.min(1, Math.max(0.2, (this.gameState.canvas.height - this.lastBallY) / 180))
-          : 0;
-        const offset = this.clampOffset(brickBias * timeScale);
-        const targetX = targetBaseX + offset;
+
+        // 如果精确模式失败，使用原有的预测逻辑
+        if (!usedPreciseMode) {
+          let targetBaseX = this.lastBallX;
+          if (movingDown && Number.isFinite(this.prevBallAt) && this.prevBallAt > 0) {
+            const dt = Math.max(1, this.lastBallAt - this.prevBallAt);
+            const vx = (this.lastBallX - (this.prevBallX ?? this.lastBallX)) / dt;
+            const vy = (this.lastBallY - (this.prevBallY ?? this.lastBallY)) / dt;
+            const paddleY = (this.gameState.canvas?.height || 0) - 18;
+            if (vy > 0) {
+              const timeToPaddle = (paddleY - this.lastBallY) / vy;
+              if (timeToPaddle > 0 && Number.isFinite(timeToPaddle)) {
+                let predicted = this.lastBallX + vx * timeToPaddle;
+                const max = width;
+                while (predicted < 0 || predicted > max) {
+                  if (predicted < 0) predicted = -predicted;
+                  if (predicted > max) predicted = 2 * max - predicted;
+                }
+                targetBaseX = predicted;
+              }
+            }
+          }
+
+          // 只在小球下落时偏向砖块，上升时完全专注接球
+          targetX = targetBaseX;
+
+          // 像素检测模式已废弃，精确模式会自动处理砖块瞄准
+        }
+
         const clampedX = Math.min(width, Math.max(0, targetX));
         this.movePaddle(clampedX);
         if (this.logCounter % 60 === 0) {
@@ -546,11 +764,12 @@ window.WH = window.WH || {};
     getConfigDisplay() {
       const maxGamesText = this.config.maxGames > 0 ? `${this.config.maxGames}局` : '无限';
       const minBalText = this.config.minBalance > 0 ? `${this.config.minBalance}` : '不限';
+      const maxLevelText = this.config.maxLevel > 0 ? `${this.config.maxLevel}关` : '无限';
       return `
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">自动开始</span><span class="${PREFIX}-val">${this.config.autoStart ? '开' : '关'}</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">扫描速度</span><span class="${PREFIX}-val">${this.config.speed}</span></div>
-        <div class="${PREFIX}-row"><span class="${PREFIX}-label">砖块偏向</span><span class="${PREFIX}-val">${this.config.brickBias}%</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">局数限制</span><span class="${PREFIX}-val">${maxGamesText}</span></div>
+        <div class="${PREFIX}-row"><span class="${PREFIX}-label">关卡限制</span><span class="${PREFIX}-val">${maxLevelText}</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">最低余额</span><span class="${PREFIX}-val">${minBalText}</span></div>
       `;
     },
@@ -574,27 +793,29 @@ window.WH = window.WH || {};
         </div>
         <div class="${PREFIX}-input-group">
           <div class="${PREFIX}-input-row">
-            <label>扫描速度</label>
+            <label>扫描速度 (像素/帧)</label>
             <input type="number" id="inp-speed" value="${this.config.speed}" min="1" max="20">
           </div>
-          <div class="${PREFIX}-input-row">
-            <label>砖块偏向 (0-100)</label>
-            <input type="number" id="inp-brick-bias" value="${this.config.brickBias}" min="0" max="100">
-          </div>
+          <div class="${PREFIX}-hint">💡 扫描速度控制挡板寻找小球的移动速度。调高(10-20)扫描更快但可能错过小球，调低(1-5)更精确但速度较慢。推荐值：8</div>
           <div class="${PREFIX}-input-row">
             <label>局数限制 (0=无限)</label>
             <input type="number" id="inp-max-games" value="${this.config.maxGames}" min="0">
+          </div>
+          <div class="${PREFIX}-input-row">
+            <label>关卡限制 (0=无限)</label>
+            <input type="number" id="inp-max-level" value="${this.config.maxLevel}" min="0">
           </div>
           <div class="${PREFIX}-input-row">
             <label>最低余额 (0=不限)</label>
             <input type="number" id="inp-min-balance" value="${this.config.minBalance}" min="0">
           </div>
         </div>
+        <div class="${PREFIX}-hint">💡 精确追踪模式已启用，会自动瞄准目标砖块</div>
       `, () => {
         this.config.autoStart = document.getElementById('tog-autostart').classList.contains('active');
         this.config.speed = Math.max(1, Math.min(20, parseInt(document.getElementById('inp-speed').value) || 8));
-        this.config.brickBias = Math.max(0, Math.min(100, parseInt(document.getElementById('inp-brick-bias').value) || 0));
         this.config.maxGames = Math.max(0, parseInt(document.getElementById('inp-max-games').value) || 0);
+        this.config.maxLevel = Math.max(0, parseInt(document.getElementById('inp-max-level').value) || 0);
         this.config.minBalance = Math.max(0, parseInt(document.getElementById('inp-min-balance').value) || 0);
         this.saveConfig();
       });
