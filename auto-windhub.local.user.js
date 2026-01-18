@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         WindHub 自动化助手 (local)
-// @version      2.1.0-local
+// @version      2.1.1-local
 // @description  WindHub 福利站自动化脚本（本地调试版）
 // @license      Apache-2.0
 // @homepage     https://github.com/shay-wong/automatic_lottery
