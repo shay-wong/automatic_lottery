@@ -21,11 +21,13 @@ window.WH = window.WH || {};
     isRunning: false,
     animationId: null,
     stats: { games: 0, bricks: 0, chests: 0 },
-    gameState: { canvas: null },
+    gameState: { canvas: null, ctx: null },
     lastStartTime: null,
     scanPosition: 0,
     scanDirection: 1,
     logCounter: 0,
+    lastDetectAt: 0,
+    lastBallX: null,
 
     init() {
       this.config = { ...this.defaultConfig };
@@ -47,6 +49,7 @@ window.WH = window.WH || {};
         || document.querySelector('canvas');
 
       if (this.gameState.canvas) {
+        this.gameState.ctx = this.gameState.canvas.getContext('2d');
         this.scanPosition = this.gameState.canvas.width / 2;
         console.log('[自动打砖块] Canvas 找到:', this.gameState.canvas.width, 'x', this.gameState.canvas.height);
       } else {
@@ -60,14 +63,17 @@ window.WH = window.WH || {};
         if (!this.gameState.canvas) return;
       }
       const rect = this.gameState.canvas.getBoundingClientRect();
-      const clientX = rect.left + x;
+      const scaleX = this.gameState.canvas.width ? (rect.width / this.gameState.canvas.width) : 1;
+      const clientX = rect.left + (x * scaleX);
       const clientY = rect.top + rect.height - 50;
 
       // 尝试 PointerEvent
       const pointerEvent = new PointerEvent('pointermove', {
         bubbles: true, cancelable: true,
         clientX, clientY,
-        pointerType: 'mouse'
+        pointerType: 'mouse',
+        pointerId: 1,
+        isPrimary: true
       });
       this.gameState.canvas.dispatchEvent(pointerEvent);
 
@@ -202,6 +208,45 @@ window.WH = window.WH || {};
       }
     },
 
+    detectBallX() {
+      if (!this.gameState.canvas || !this.gameState.ctx) return null;
+      const canvas = this.gameState.canvas;
+      const ctx = this.gameState.ctx;
+      const width = canvas.width;
+      const height = canvas.height;
+      if (!width || !height) return null;
+
+      const threshold = 240;
+      const step = 2;
+      const yLimit = Math.max(0, height - 40);
+      const image = ctx.getImageData(0, 0, width, yLimit);
+      const data = image.data;
+      let sumX = 0;
+      let count = 0;
+      let minX = width;
+      let maxX = 0;
+
+      for (let y = 0; y < yLimit; y += step) {
+        for (let x = 0; x < width; x += step) {
+          const idx = (y * width + x) * 4;
+          const r = data[idx];
+          const g = data[idx + 1];
+          const b = data[idx + 2];
+          const a = data[idx + 3];
+          if (a > 200 && r >= threshold && g >= threshold && b >= threshold) {
+            sumX += x;
+            count += 1;
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+          }
+        }
+      }
+
+      if (!count) return null;
+      if ((maxX - minX) > width * 0.5) return null;
+      return sumX / count;
+    },
+
     loop() {
       if (!this.isRunning) return;
 
@@ -238,12 +283,27 @@ window.WH = window.WH || {};
         return;
       }
 
-      this.updateScanPosition();
-      this.movePaddle(this.scanPosition);
+      const now = performance.now();
+      if (now - this.lastDetectAt > 80) {
+        this.lastDetectAt = now;
+        this.lastBallX = this.detectBallX();
+      }
 
-      // 每 60 帧输出一次扫描日志
-      if (this.logCounter % 60 === 0) {
-        console.log('[自动打砖块] 扫描中 X:', Math.round(this.scanPosition));
+      if (Number.isFinite(this.lastBallX)) {
+        const width = this.gameState.canvas?.width || 0;
+        const clampedX = Math.min(width, Math.max(0, this.lastBallX));
+        this.movePaddle(clampedX);
+        if (this.logCounter % 60 === 0) {
+          console.log('[自动打砖块] 追踪小球 X:', Math.round(clampedX));
+        }
+        WH.updateStatus(`追踪小球 X:${Math.round(clampedX)}`);
+      } else {
+        this.updateScanPosition();
+        this.movePaddle(this.scanPosition);
+        if (this.logCounter % 60 === 0) {
+          console.log('[自动打砖块] 扫描中 X:', Math.round(this.scanPosition));
+        }
+        WH.updateStatus(`扫描中 X:${Math.round(this.scanPosition)}`);
       }
 
       const normalEl = document.getElementById('stat-normal');
@@ -257,7 +317,6 @@ window.WH = window.WH || {};
         if (c > this.stats.chests) this.stats.chests = c;
       }
       WH.updateStatsDisplay();
-      WH.updateStatus(`扫描中 X:${Math.round(this.scanPosition)}`);
 
       this.animationId = requestAnimationFrame(() => this.loop());
     },
@@ -265,6 +324,8 @@ window.WH = window.WH || {};
     start() {
       console.log('[自动打砖块] 启动');
       this.isRunning = true;
+      this.lastDetectAt = 0;
+      this.lastBallX = null;
       this.initCanvas();
       this.loop();
     },
