@@ -16,6 +16,7 @@ window.WH = window.WH || {};
       speed: 8,
       maxGames: 0, // 0 表示无限制
       minBalance: 0, // 最低余额阈值，0 表示不限制
+      brickBias: 30, // 0-100，偏向砖块的权重
     },
     config: null,
     isRunning: false,
@@ -30,6 +31,8 @@ window.WH = window.WH || {};
     lastBallX: null,
     lastBallY: null,
     lastPaddleSpan: null,
+    lastBrickDetectAt: 0,
+    brickTargetX: null,
     jitterOffset: 0,
     lastJitterAt: 0,
 
@@ -288,6 +291,41 @@ window.WH = window.WH || {};
       return { minX, maxX, width: maxX - minX };
     },
 
+    detectBrickTargetX() {
+      if (!this.gameState.canvas || !this.gameState.ctx) return null;
+      const canvas = this.gameState.canvas;
+      const ctx = this.gameState.ctx;
+      const width = canvas.width;
+      const height = canvas.height;
+      if (!width || !height) return null;
+
+      const yLimit = Math.max(1, Math.floor(height * 0.45));
+      const step = 4;
+      const image = ctx.getImageData(0, 0, width, yLimit);
+      const data = image.data;
+      let sumX = 0;
+      let count = 0;
+
+      for (let y = 0; y < yLimit; y += step) {
+        for (let x = 0; x < width; x += step) {
+          const idx = (y * width + x) * 4;
+          const r = data[idx];
+          const g = data[idx + 1];
+          const b = data[idx + 2];
+          const a = data[idx + 3];
+          if (a < 80) continue;
+          const brightness = (r + g + b) / 3;
+          if (brightness > 60 && brightness < 240) {
+            sumX += x;
+            count += 1;
+          }
+        }
+      }
+
+      if (count < 20) return null;
+      return sumX / count;
+    },
+
     getJitterOffset(now, ballY) {
       if (!Number.isFinite(ballY) || !this.gameState.canvas) return 0;
       const height = this.gameState.canvas.height || 0;
@@ -356,11 +394,20 @@ window.WH = window.WH || {};
         const paddleSpan = this.detectPaddleSpan();
         if (paddleSpan) this.lastPaddleSpan = paddleSpan;
       }
+      if (now - this.lastBrickDetectAt > 800) {
+        this.lastBrickDetectAt = now;
+        const targetX = this.detectBrickTargetX();
+        if (Number.isFinite(targetX)) this.brickTargetX = targetX;
+      }
 
       if (Number.isFinite(this.lastBallX)) {
         const width = this.gameState.canvas?.width || 0;
         const jitter = this.getJitterOffset(now, this.lastBallY);
-        const targetX = this.lastBallX + jitter;
+        const biasWeight = Math.max(0, Math.min(100, this.config.brickBias || 0)) / 100;
+        const brickBias = Number.isFinite(this.brickTargetX)
+          ? (this.brickTargetX - this.lastBallX) * biasWeight
+          : 0;
+        const targetX = this.lastBallX + jitter + brickBias;
         const clampedX = Math.min(width, Math.max(0, targetX));
         this.movePaddle(clampedX);
         if (this.logCounter % 60 === 0) {
@@ -399,6 +446,8 @@ window.WH = window.WH || {};
       this.lastBallX = null;
       this.lastBallY = null;
       this.lastPaddleSpan = null;
+      this.lastBrickDetectAt = 0;
+      this.brickTargetX = null;
       this.jitterOffset = 0;
       this.lastJitterAt = 0;
       this.initCanvas();
@@ -421,6 +470,7 @@ window.WH = window.WH || {};
       return `
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">自动开始</span><span class="${PREFIX}-val">${this.config.autoStart ? '开' : '关'}</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">扫描速度</span><span class="${PREFIX}-val">${this.config.speed}</span></div>
+        <div class="${PREFIX}-row"><span class="${PREFIX}-label">砖块偏向</span><span class="${PREFIX}-val">${this.config.brickBias}%</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">局数限制</span><span class="${PREFIX}-val">${maxGamesText}</span></div>
         <div class="${PREFIX}-row"><span class="${PREFIX}-label">最低余额</span><span class="${PREFIX}-val">${minBalText}</span></div>
       `;
@@ -449,6 +499,10 @@ window.WH = window.WH || {};
             <input type="number" id="inp-speed" value="${this.config.speed}" min="1" max="20">
           </div>
           <div class="${PREFIX}-input-row">
+            <label>砖块偏向 (0-100)</label>
+            <input type="number" id="inp-brick-bias" value="${this.config.brickBias}" min="0" max="100">
+          </div>
+          <div class="${PREFIX}-input-row">
             <label>局数限制 (0=无限)</label>
             <input type="number" id="inp-max-games" value="${this.config.maxGames}" min="0">
           </div>
@@ -460,6 +514,7 @@ window.WH = window.WH || {};
       `, () => {
         this.config.autoStart = document.getElementById('tog-autostart').classList.contains('active');
         this.config.speed = Math.max(1, Math.min(20, parseInt(document.getElementById('inp-speed').value) || 8));
+        this.config.brickBias = Math.max(0, Math.min(100, parseInt(document.getElementById('inp-brick-bias').value) || 0));
         this.config.maxGames = Math.max(0, parseInt(document.getElementById('inp-max-games').value) || 0);
         this.config.minBalance = Math.max(0, parseInt(document.getElementById('inp-min-balance').value) || 0);
         this.saveConfig();
