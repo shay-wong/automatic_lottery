@@ -16,8 +16,8 @@ window.WH = window.WH || {};
       speed: 8,
       maxGames: 0, // 0 表示无限制
       minBalance: 0, // 最低余额阈值，0 表示不限制
-      brickBias: 30, // 0-100，偏向砖块的权重
-      jitterScale: 35, // 0-100，随机幅度（相对挡板宽度的百分比）
+      brickBias: 20, // 0-100，偏向砖块的权重
+      jitterScale: 25, // 0-100，随机幅度（相对挡板宽度的百分比）
     },
     config: null,
     isRunning: false,
@@ -31,7 +31,10 @@ window.WH = window.WH || {};
     lastDetectAt: 0,
     lastBallX: null,
     lastBallY: null,
+    prevBallY: null,
     lastPaddleSpan: null,
+    lastBallSeenAt: 0,
+    lastRescueAt: 0,
     lastBrickDetectAt: 0,
     brickTargetX: null,
     jitterOffset: 0,
@@ -327,11 +330,10 @@ window.WH = window.WH || {};
       return sumX / count;
     },
 
-    getJitterOffset(now, ballY) {
+    getJitterOffset(now, ballY, movingDown) {
       if (!Number.isFinite(ballY) || !this.gameState.canvas) return 0;
       const height = this.gameState.canvas.height || 0;
       if (!height) return 0;
-      const movingDown = this.lastBallY !== null && ballY > this.lastBallY;
       if (!movingDown) {
         this.jitterOffset = 0;
         this.lastJitterAt = 0;
@@ -347,6 +349,31 @@ window.WH = window.WH || {};
       this.jitterOffset = (Math.random() * 2 - 1) * range;
       this.lastJitterAt = now;
       return this.jitterOffset;
+    },
+
+    releaseBall() {
+      if (!this.gameState.canvas) return;
+      const rect = this.gameState.canvas.getBoundingClientRect();
+      const clientX = rect.left + rect.width * 0.5;
+      const clientY = rect.top + rect.height * 0.9;
+      const pointerEvent = new PointerEvent('pointerdown', {
+        bubbles: true,
+        cancelable: true,
+        clientX,
+        clientY,
+        pointerType: 'mouse',
+        pointerId: 1,
+        isPrimary: true
+      });
+      this.gameState.canvas.dispatchEvent(pointerEvent);
+      this.pressKey(' ');
+    },
+
+    clampOffset(offset) {
+      if (!this.lastPaddleSpan) return offset;
+      const safeHalf = Math.max(8, (this.lastPaddleSpan.width / 2) - 6);
+      if (!Number.isFinite(safeHalf) || safeHalf <= 0) return offset;
+      return Math.min(safeHalf, Math.max(-safeHalf, offset));
     },
 
     loop() {
@@ -390,8 +417,13 @@ window.WH = window.WH || {};
         this.lastDetectAt = now;
         const ball = this.detectBall();
         if (ball) {
+          this.prevBallY = this.lastBallY;
           this.lastBallX = ball.x;
           this.lastBallY = ball.y;
+          this.lastBallSeenAt = now;
+        } else if (now - this.lastBallSeenAt > 200) {
+          this.lastBallX = null;
+          this.lastBallY = null;
         }
         const paddleSpan = this.detectPaddleSpan();
         if (paddleSpan) this.lastPaddleSpan = paddleSpan;
@@ -404,12 +436,19 @@ window.WH = window.WH || {};
 
       if (Number.isFinite(this.lastBallX)) {
         const width = this.gameState.canvas?.width || 0;
-        const jitter = this.getJitterOffset(now, this.lastBallY);
-        const biasWeight = Math.max(0, Math.min(100, this.config.brickBias || 0)) / 100;
+        const movingDown = Number.isFinite(this.lastBallY)
+          && Number.isFinite(this.prevBallY)
+          ? this.lastBallY >= this.prevBallY
+          : false;
+        const jitter = this.getJitterOffset(now, this.lastBallY, movingDown);
+        const biasWeight = movingDown
+          ? Math.max(0, Math.min(100, this.config.brickBias || 0)) / 100
+          : 0;
         const brickBias = Number.isFinite(this.brickTargetX)
           ? (this.brickTargetX - this.lastBallX) * biasWeight
           : 0;
-        const targetX = this.lastBallX + jitter + brickBias;
+        const offset = this.clampOffset(jitter + brickBias);
+        const targetX = this.lastBallX + offset;
         const clampedX = Math.min(width, Math.max(0, targetX));
         this.movePaddle(clampedX);
         if (this.logCounter % 60 === 0) {
@@ -417,6 +456,10 @@ window.WH = window.WH || {};
         }
         WH.updateStatus(`追踪小球 X:${Math.round(clampedX)}`);
       } else {
+        if (now - this.lastBallSeenAt > 1000 && now - this.lastRescueAt > 1500) {
+          this.lastRescueAt = now;
+          this.releaseBall();
+        }
         this.updateScanPosition();
         this.movePaddle(this.scanPosition);
         if (this.logCounter % 60 === 0) {
@@ -447,7 +490,10 @@ window.WH = window.WH || {};
       this.lastDetectAt = 0;
       this.lastBallX = null;
       this.lastBallY = null;
+      this.prevBallY = null;
       this.lastPaddleSpan = null;
+      this.lastBallSeenAt = 0;
+      this.lastRescueAt = 0;
       this.lastBrickDetectAt = 0;
       this.brickTargetX = null;
       this.jitterOffset = 0;
