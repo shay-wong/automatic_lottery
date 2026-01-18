@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         WindHub 自动化助手 (local)
-// @version      2.0.12-local
+// @version      2.1.0-local
 // @description  WindHub 福利站自动化脚本（本地调试版）
 // @license      Apache-2.0
 // @homepage     https://github.com/shay-wong/automatic_lottery
 // @match        https://wcdk.224442.xyz/*
-// @require      file:///Users/Shay/Desktop/Work/GitHub/Own/automatic_lottery/src/common.js
-// @require      file:///Users/Shay/Desktop/Work/GitHub/Own/automatic_lottery/src/farm.js
-// @require      file:///Users/Shay/Desktop/Work/GitHub/Own/automatic_lottery/src/cards.js
-// @require      file:///Users/Shay/Desktop/Work/GitHub/Own/automatic_lottery/src/brick.js
+// @require      file:///home/runner/work/automatic_lottery/automatic_lottery/src/common.js
+// @require      file:///home/runner/work/automatic_lottery/automatic_lottery/src/farm.js
+// @require      file:///home/runner/work/automatic_lottery/automatic_lottery/src/cards.js
+// @require      file:///home/runner/work/automatic_lottery/automatic_lottery/src/brick.js
 // @run-at       document-start
 // @grant        none
 // ==/UserScript==
