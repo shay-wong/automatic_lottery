@@ -44,6 +44,8 @@ window.WH = window.WH || {};
     if (window.WH?.FarmModule?.refreshCropsData) {
       window.WH.FarmModule.refreshCropsData();
     }
+    // 不在拦截器中调用 renderState，避免与原生代码冲突
+    // renderState 会在 updateLocalCache 中被调用（仅用于脚本触发的操作）
     if (window.WH?.updateStatsDisplay) window.WH.updateStatsDisplay();
     if (window.WH?.updateConfigDisplay) window.WH.updateConfigDisplay();
     return true;
@@ -931,11 +933,31 @@ window.WH = window.WH || {};
 
       console.log('[自动农场] 本地缓存已刷新');
 
-      // 刷新网页 UI
-      if (typeof window.renderState === 'function') {
-        window.renderState(state);
+      // 触发原生网页的"刷新状态"按钮，让网页重新获取状态并渲染
+      // 这样可以确保闭包内的 state 被更新，倒计时等功能正常工作
+      const refreshBtn = document.getElementById('btn-refresh');
+      if (refreshBtn) {
+        console.log('[自动农场] 触发原生刷新按钮');
+        refreshBtn.click();
+        return; // 原生刷新会处理所有 UI 更新
       }
 
+      // 降级方案：如果没有刷新按钮，尝试更新 window.state
+      if (window.state && typeof window.state === 'object') {
+        if (hasPlots) window.state.plots = state.plots;
+        if (hasProfile) window.state.profile = state.profile;
+        if (hasWallet) window.state.wallet_balance = state.wallet_balance;
+        if (state.crops) window.state.crops = state.crops;
+        console.log('[自动农场] 已更新 window.state');
+      }
+
+      // 刷新网页 UI - 优先使用原生 renderState（包含倒计时机制）
+      if (typeof window.renderState === 'function') {
+        window.renderState(window.state || state);
+        return;
+      }
+
+      // 最后降级：使用我们自己的刷新方法
       if (!hasPlots) {
         await this.refreshFarmState();
         return;
