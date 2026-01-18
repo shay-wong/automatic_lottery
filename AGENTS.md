@@ -122,6 +122,8 @@ UI 创建和事件绑定
    - 生成 `auto-windhub.local.user.js`（如有 WindHub 版本变更）
    - 提交版本更新到 `main`
    - 自动创建 tag 并发布 GitHub Release
+   - Release 附件包含 `auto-*.user.js`
+     与 `auto-windhub.local.user.js`
    - 删除已消费的 changeset 文件
 
 4. **版本号规范**：遵循语义化版本（SemVer）
@@ -129,6 +131,14 @@ UI 创建和事件绑定
    - MAJOR：不兼容的 API 变更
    - MINOR：向后兼容的功能新增
    - PATCH：向后兼容的 Bug 修复
+
+### PR 校验
+
+- PR 会触发 `.github/workflows/pr-check.yml`
+  校验流程
+- 校验内容包含 markdownlint
+  与本地 WindHub 脚本同步检查
+- 通过后会上传 userscript 产物供审核
 
 ### 文档同步
 
