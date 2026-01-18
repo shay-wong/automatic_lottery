@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         WindHub 自动化助手
-// @version      2.0.5
+// @version      2.0.6
 // @description  WindHub 福利站自动化脚本，支持农场、抽卡、打砖块
 // @license      Apache-2.0
 // @homepage     https://github.com/shay-wong/automatic_lottery
@@ -8,10 +8,10 @@
 // @downloadURL  https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/auto-windhub.user.js
 // @supportURL   https://github.com/shay-wong/automatic_lottery/issues
 // @match        https://wcdk.224442.xyz/*
-// @require      https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/src/common.js?v=2.0.5
-// @require      https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/src/farm.js?v=2.0.5
-// @require      https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/src/cards.js?v=2.0.5
-// @require      https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/src/brick.js?v=2.0.5
+// @require      https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/src/common.js?v=2.0.6
+// @require      https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/src/farm.js?v=2.0.6
+// @require      https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/src/cards.js?v=2.0.6
+// @require      https://raw.githubusercontent.com/shay-wong/automatic_lottery/master/src/brick.js?v=2.0.6
 // @run-at       document-start
 // @grant        none
 // ==/UserScript==
