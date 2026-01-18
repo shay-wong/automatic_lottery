@@ -514,7 +514,11 @@ window.WH = window.WH || {};
     // 拖拽
     let dragging = false, offsetX, offsetY;
     header.addEventListener('mousedown', (e) => {
+      if (!e.isTrusted || e.button !== 0) return;
       if (e.target === minBtn) return;
+      if (typeof WH.isRunning === 'function' && WH.isRunning() && currentModule?.name === '自动打砖块') {
+        return;
+      }
       dragging = true;
       offsetX = e.clientX - panel.getBoundingClientRect().left;
       offsetY = e.clientY - panel.getBoundingClientRect().top;
@@ -523,6 +527,12 @@ window.WH = window.WH || {};
     });
     window.addEventListener('mousemove', (e) => {
       if (!dragging) return;
+      if (e.buttons === 0) {
+        dragging = false;
+        panel.style.transition = '';
+        savePanelState();
+        return;
+      }
       panel.style.left = (e.clientX - offsetX) + 'px';
       panel.style.top = (e.clientY - offsetY) + 'px';
       panel.style.right = 'auto';
