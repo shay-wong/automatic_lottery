@@ -14,10 +14,16 @@
 
   const DEFAULT_CONFIG = {
     interval: 6000,
+    tenInterval: 6000,
+    confirmInterval: 6000,
+    closeInterval: 6000,
     mode: '单抽',
     paidLimit: 400,
     timeout: 10000,
     intervalUnit: 's',
+    tenIntervalUnit: 's',
+    confirmIntervalUnit: 's',
+    closeIntervalUnit: 's',
     timeoutUnit: 's'
   };
 
@@ -27,18 +33,30 @@
     if (saved) {
       const parsed = JSON.parse(saved);
       CONFIG = { ...DEFAULT_CONFIG, ...parsed };
-      if (!CONFIG.intervalUnit) {
-        CONFIG.intervalUnit = CONFIG.interval % 1000 === 0 ? 's' : 'ms';
+      const inferUnit = (value) => (value % 1000 === 0 ? 's' : 'ms');
+      if (!CONFIG.intervalUnit) CONFIG.intervalUnit = inferUnit(CONFIG.interval);
+      if (CONFIG.tenInterval == null) CONFIG.tenInterval = CONFIG.interval;
+      if (!CONFIG.tenIntervalUnit) {
+        CONFIG.tenIntervalUnit = inferUnit(CONFIG.tenInterval);
       }
-      if (!CONFIG.timeoutUnit) {
-        CONFIG.timeoutUnit = CONFIG.timeout % 1000 === 0 ? 's' : 'ms';
+      if (CONFIG.confirmInterval == null) CONFIG.confirmInterval = CONFIG.interval;
+      if (!CONFIG.confirmIntervalUnit) {
+        CONFIG.confirmIntervalUnit = inferUnit(CONFIG.confirmInterval);
       }
+      if (CONFIG.closeInterval == null) CONFIG.closeInterval = CONFIG.interval;
+      if (!CONFIG.closeIntervalUnit) {
+        CONFIG.closeIntervalUnit = inferUnit(CONFIG.closeInterval);
+      }
+      if (!CONFIG.timeoutUnit) CONFIG.timeoutUnit = inferUnit(CONFIG.timeout);
     }
   } catch (e) {}
 
   let isRunning = false;
   let intervalId = null;
   let drawCount = 0;
+  let lastCloseAt = 0;
+  let lastConfirmAt = 0;
+  let lastDrawAt = 0;
 
   function saveConfig() {
     localStorage.setItem('acd_config', JSON.stringify(CONFIG));
@@ -98,6 +116,24 @@
     probe.remove();
     const width = Math.max(90, textWidth + paddingLeft + paddingRight + arrowWidth);
     select.style.width = `${width}px`;
+  }
+
+  function getDrawInterval() {
+    return CONFIG.mode === '十连抽' ? CONFIG.tenInterval : CONFIG.interval;
+  }
+
+  function getLoopInterval() {
+    return Math.min(1000, CONFIG.closeInterval, CONFIG.confirmInterval, getDrawInterval());
+  }
+
+  function resetActionTimers() {
+    lastCloseAt = 0;
+    lastConfirmAt = 0;
+    lastDrawAt = 0;
+  }
+
+  function canAct(now, lastAt, interval) {
+    return (now - lastAt) >= interval;
   }
 
   function getPaidUsed() {
@@ -253,6 +289,7 @@
 
   function draw() {
     if (!isRunning) return;
+    const now = Date.now();
 
     // 检查付费上限
     const paidUsed = getPaidUsed();
@@ -265,17 +302,41 @@
     // 1. 关闭弹窗
     const closeBtn = document.querySelector('button[aria-label="Close"]') ||
       [...document.querySelectorAll('button')].find(b => /关闭|确定|知道了|收下/.test(b.textContent) && b.offsetParent);
-    if (closeBtn?.offsetParent) { closeBtn.click(); return; }
+    if (closeBtn?.offsetParent) {
+      if (canAct(now, lastCloseAt, CONFIG.closeInterval)) {
+        closeBtn.click();
+        lastCloseAt = now;
+        updateStatus('关闭结果...');
+      } else {
+        updateStatus('等待关闭结果');
+      }
+      return;
+    }
 
     // 2. 确认弹窗
     const confirmBtn = [...document.querySelectorAll('button')].find(b => /确认|确定|继续/.test(b.textContent) && b.offsetParent && !b.disabled);
-    if (confirmBtn) { confirmBtn.click(); return; }
+    if (confirmBtn) {
+      if (canAct(now, lastConfirmAt, CONFIG.confirmInterval)) {
+        confirmBtn.click();
+        lastConfirmAt = now;
+        updateStatus('确认弹窗...');
+      } else {
+        updateStatus('等待确认弹窗');
+      }
+      return;
+    }
 
     // 3. 抽奖按钮
     const btn = [...document.querySelectorAll('button')].find(b => b.textContent.includes(CONFIG.mode) && !b.disabled && b.offsetParent);
     if (btn) {
-      btn.click();
-      updateStatus('抽卡中...');
+      const drawInterval = getDrawInterval();
+      if (canAct(now, lastDrawAt, drawInterval)) {
+        btn.click();
+        lastDrawAt = now;
+        updateStatus('抽卡中...');
+      } else {
+        updateStatus('等待抽卡');
+      }
     } else {
       updateStatus('未找到按钮');
     }
@@ -291,7 +352,8 @@
     updateBtnState();
     document.querySelector('.acd-dot').style.background = '#30d158';
     showToast('开始自动抽卡');
-    intervalId = setInterval(draw, CONFIG.interval);
+    resetActionTimers();
+    intervalId = setInterval(draw, getLoopInterval());
     draw();
   }
 
@@ -318,7 +380,10 @@
   function updateConfigDisplay() {
     document.getElementById('acd-config').innerHTML = `
       <div class="acd-row"><span class="acd-label">抽卡模式</span><span class="acd-val">${CONFIG.mode}</span></div>
-      <div class="acd-row"><span class="acd-label">间隔时间</span><span class="acd-val">${formatDuration(CONFIG.interval, CONFIG.intervalUnit)}</span></div>
+      <div class="acd-row"><span class="acd-label">单抽间隔</span><span class="acd-val">${formatDuration(CONFIG.interval, CONFIG.intervalUnit)}</span></div>
+      <div class="acd-row"><span class="acd-label">十连间隔</span><span class="acd-val">${formatDuration(CONFIG.tenInterval, CONFIG.tenIntervalUnit)}</span></div>
+      <div class="acd-row"><span class="acd-label">确认间隔</span><span class="acd-val">${formatDuration(CONFIG.confirmInterval, CONFIG.confirmIntervalUnit)}</span></div>
+      <div class="acd-row"><span class="acd-label">关闭间隔</span><span class="acd-val">${formatDuration(CONFIG.closeInterval, CONFIG.closeIntervalUnit)}</span></div>
       <div class="acd-row"><span class="acd-label">付费上限</span><span class="acd-val">${CONFIG.paidLimit}次</span></div>
       <div class="acd-row"><span class="acd-label">超时时间</span><span class="acd-val">${formatDuration(CONFIG.timeout, CONFIG.timeoutUnit)}</span></div>
     `;
@@ -329,6 +394,9 @@
     if (existing) existing.remove();
 
     const intervalParts = getDurationParts(CONFIG.interval, CONFIG.intervalUnit);
+    const tenIntervalParts = getDurationParts(CONFIG.tenInterval, CONFIG.tenIntervalUnit);
+    const confirmIntervalParts = getDurationParts(CONFIG.confirmInterval, CONFIG.confirmIntervalUnit);
+    const closeIntervalParts = getDurationParts(CONFIG.closeInterval, CONFIG.closeIntervalUnit);
     const timeoutParts = getDurationParts(CONFIG.timeout, CONFIG.timeoutUnit);
     const modal = document.createElement('div');
     modal.id = 'acd-settings';
@@ -347,12 +415,45 @@
             </div>
             <div class="acd-divider"></div>
             <div class="acd-input-row">
-              <label>间隔</label>
+              <label>单抽间隔</label>
               <div class="acd-input-inline">
                 <input type="number" id="inp-interval" value="${intervalParts.value}" min="1" step="any">
                 <select id="sel-interval-unit">
                   <option value="s" ${intervalParts.unit === 's' ? 'selected' : ''}>秒</option>
                   <option value="ms" ${intervalParts.unit === 'ms' ? 'selected' : ''}>毫秒</option>
+                </select>
+              </div>
+            </div>
+            <div class="acd-divider"></div>
+            <div class="acd-input-row">
+              <label>十连间隔</label>
+              <div class="acd-input-inline">
+                <input type="number" id="inp-ten-interval" value="${tenIntervalParts.value}" min="1" step="any">
+                <select id="sel-ten-interval-unit">
+                  <option value="s" ${tenIntervalParts.unit === 's' ? 'selected' : ''}>秒</option>
+                  <option value="ms" ${tenIntervalParts.unit === 'ms' ? 'selected' : ''}>毫秒</option>
+                </select>
+              </div>
+            </div>
+            <div class="acd-divider"></div>
+            <div class="acd-input-row">
+              <label>确认间隔</label>
+              <div class="acd-input-inline">
+                <input type="number" id="inp-confirm-interval" value="${confirmIntervalParts.value}" min="1" step="any">
+                <select id="sel-confirm-interval-unit">
+                  <option value="s" ${confirmIntervalParts.unit === 's' ? 'selected' : ''}>秒</option>
+                  <option value="ms" ${confirmIntervalParts.unit === 'ms' ? 'selected' : ''}>毫秒</option>
+                </select>
+              </div>
+            </div>
+            <div class="acd-divider"></div>
+            <div class="acd-input-row">
+              <label>关闭间隔</label>
+              <div class="acd-input-inline">
+                <input type="number" id="inp-close-interval" value="${closeIntervalParts.value}" min="1" step="any">
+                <select id="sel-close-interval-unit">
+                  <option value="s" ${closeIntervalParts.unit === 's' ? 'selected' : ''}>秒</option>
+                  <option value="ms" ${closeIntervalParts.unit === 'ms' ? 'selected' : ''}>毫秒</option>
                 </select>
               </div>
             </div>
@@ -386,39 +487,39 @@
     modal.querySelector('.acd-backdrop').onclick = () => modal.remove();
     const intervalInput = document.getElementById('inp-interval');
     const intervalUnitSelect = document.getElementById('sel-interval-unit');
+    const tenIntervalInput = document.getElementById('inp-ten-interval');
+    const tenIntervalUnitSelect = document.getElementById('sel-ten-interval-unit');
+    const confirmIntervalInput = document.getElementById('inp-confirm-interval');
+    const confirmIntervalUnitSelect = document.getElementById('sel-confirm-interval-unit');
+    const closeIntervalInput = document.getElementById('inp-close-interval');
+    const closeIntervalUnitSelect = document.getElementById('sel-close-interval-unit');
     const timeoutInput = document.getElementById('inp-timeout');
     const timeoutUnitSelect = document.getElementById('sel-timeout-unit');
-    intervalUnitSelect.dataset.prevUnit = intervalUnitSelect.value;
-    timeoutUnitSelect.dataset.prevUnit = timeoutUnitSelect.value;
-    autoSizeSelect(intervalUnitSelect);
-    autoSizeSelect(timeoutUnitSelect);
-    intervalUnitSelect.addEventListener('change', () => {
-      const prevUnit = intervalUnitSelect.dataset.prevUnit;
-      const nextUnit = intervalUnitSelect.value;
-      if (prevUnit === nextUnit) return;
-      const currentValue = parseFloat(intervalInput.value);
-      if (Number.isFinite(currentValue)) {
-        const converted = prevUnit === 's' && nextUnit === 'ms'
-          ? currentValue * 1000
-          : currentValue / 1000;
-        intervalInput.value = normalizeDurationValue(converted);
-      }
-      intervalUnitSelect.dataset.prevUnit = nextUnit;
-      autoSizeSelect(intervalUnitSelect);
-    });
-    timeoutUnitSelect.addEventListener('change', () => {
-      const prevUnit = timeoutUnitSelect.dataset.prevUnit;
-      const nextUnit = timeoutUnitSelect.value;
-      if (prevUnit === nextUnit) return;
-      const currentValue = parseFloat(timeoutInput.value);
-      if (Number.isFinite(currentValue)) {
-        const converted = prevUnit === 's' && nextUnit === 'ms'
-          ? currentValue * 1000
-          : currentValue / 1000;
-        timeoutInput.value = normalizeDurationValue(converted);
-      }
-      timeoutUnitSelect.dataset.prevUnit = nextUnit;
-      autoSizeSelect(timeoutUnitSelect);
+    const durationControls = [
+      { input: intervalInput, select: intervalUnitSelect },
+      { input: tenIntervalInput, select: tenIntervalUnitSelect },
+      { input: confirmIntervalInput, select: confirmIntervalUnitSelect },
+      { input: closeIntervalInput, select: closeIntervalUnitSelect },
+      { input: timeoutInput, select: timeoutUnitSelect },
+    ];
+    durationControls.forEach(({ input, select }) => {
+      if (!input || !select) return;
+      select.dataset.prevUnit = select.value;
+      autoSizeSelect(select);
+      select.addEventListener('change', () => {
+        const prevUnit = select.dataset.prevUnit;
+        const nextUnit = select.value;
+        if (prevUnit === nextUnit) return;
+        const currentValue = parseFloat(input.value);
+        if (Number.isFinite(currentValue)) {
+          const converted = prevUnit === 's' && nextUnit === 'ms'
+            ? currentValue * 1000
+            : currentValue / 1000;
+          input.value = normalizeDurationValue(converted);
+        }
+        select.dataset.prevUnit = nextUnit;
+        autoSizeSelect(select);
+      });
     });
     document.getElementById('btn-cancel').onclick = () => modal.remove();
     document.getElementById('btn-save').onclick = () => {
@@ -428,6 +529,24 @@
         document.getElementById('inp-interval').value,
         CONFIG.intervalUnit,
         CONFIG.interval
+      );
+      CONFIG.tenIntervalUnit = document.getElementById('sel-ten-interval-unit').value;
+      CONFIG.tenInterval = toMilliseconds(
+        document.getElementById('inp-ten-interval').value,
+        CONFIG.tenIntervalUnit,
+        CONFIG.tenInterval
+      );
+      CONFIG.confirmIntervalUnit = document.getElementById('sel-confirm-interval-unit').value;
+      CONFIG.confirmInterval = toMilliseconds(
+        document.getElementById('inp-confirm-interval').value,
+        CONFIG.confirmIntervalUnit,
+        CONFIG.confirmInterval
+      );
+      CONFIG.closeIntervalUnit = document.getElementById('sel-close-interval-unit').value;
+      CONFIG.closeInterval = toMilliseconds(
+        document.getElementById('inp-close-interval').value,
+        CONFIG.closeIntervalUnit,
+        CONFIG.closeInterval
       );
       CONFIG.paidLimit = Math.max(0, parseInt(document.getElementById('inp-limit').value) || 400);
       CONFIG.timeoutUnit = document.getElementById('sel-timeout-unit').value;
@@ -440,7 +559,8 @@
       updateConfigDisplay();
       if (isRunning) {
         clearInterval(intervalId);
-        intervalId = setInterval(draw, CONFIG.interval);
+        resetActionTimers();
+        intervalId = setInterval(draw, getLoopInterval());
       }
       modal.remove();
       showToast('设置已保存');
