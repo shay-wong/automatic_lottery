@@ -2,3 +2,4 @@
 .DS_Store
 release-info.json
 release-notes/
+tmp/
