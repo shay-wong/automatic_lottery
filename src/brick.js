@@ -28,6 +28,10 @@ window.WH = window.WH || {};
     logCounter: 0,
     lastDetectAt: 0,
     lastBallX: null,
+    lastBallY: null,
+    lastPaddleSpan: null,
+    jitterOffset: 0,
+    lastJitterAt: 0,
 
     init() {
       this.config = { ...this.defaultConfig };
@@ -208,7 +212,7 @@ window.WH = window.WH || {};
       }
     },
 
-    detectBallX() {
+    detectBall() {
       if (!this.gameState.canvas || !this.gameState.ctx) return null;
       const canvas = this.gameState.canvas;
       const ctx = this.gameState.ctx;
@@ -218,10 +222,11 @@ window.WH = window.WH || {};
 
       const threshold = 240;
       const step = 2;
-      const yLimit = Math.max(0, height - 40);
+      const yLimit = Math.max(0, height - 25);
       const image = ctx.getImageData(0, 0, width, yLimit);
       const data = image.data;
       let sumX = 0;
+      let sumY = 0;
       let count = 0;
       let minX = width;
       let maxX = 0;
@@ -235,6 +240,7 @@ window.WH = window.WH || {};
           const a = data[idx + 3];
           if (a > 200 && r >= threshold && g >= threshold && b >= threshold) {
             sumX += x;
+            sumY += y;
             count += 1;
             if (x < minX) minX = x;
             if (x > maxX) maxX = x;
@@ -244,7 +250,63 @@ window.WH = window.WH || {};
 
       if (!count) return null;
       if ((maxX - minX) > width * 0.5) return null;
-      return sumX / count;
+      return { x: sumX / count, y: sumY / count };
+    },
+
+    detectPaddleSpan() {
+      if (!this.gameState.canvas || !this.gameState.ctx) return null;
+      const canvas = this.gameState.canvas;
+      const ctx = this.gameState.ctx;
+      const width = canvas.width;
+      const height = canvas.height;
+      if (!width || !height) return null;
+
+      const threshold = 220;
+      const yStart = Math.max(0, height - 30);
+      const image = ctx.getImageData(0, yStart, width, height - yStart);
+      const data = image.data;
+      let minX = width;
+      let maxX = 0;
+      let count = 0;
+
+      for (let y = 0; y < (height - yStart); y += 1) {
+        for (let x = 0; x < width; x += 1) {
+          const idx = (y * width + x) * 4;
+          const r = data[idx];
+          const g = data[idx + 1];
+          const b = data[idx + 2];
+          const a = data[idx + 3];
+          if (a > 200 && r > threshold && g > threshold && b > threshold) {
+            count += 1;
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+          }
+        }
+      }
+
+      if (!count || minX >= maxX) return null;
+      return { minX, maxX, width: maxX - minX };
+    },
+
+    getJitterOffset(now, ballY) {
+      if (!Number.isFinite(ballY) || !this.gameState.canvas) return 0;
+      const height = this.gameState.canvas.height || 0;
+      if (!height) return 0;
+      const movingDown = this.lastBallY !== null && ballY > this.lastBallY;
+      if (!movingDown) {
+        this.jitterOffset = 0;
+        this.lastJitterAt = 0;
+        return 0;
+      }
+
+      if (ballY < height * 0.55) return this.jitterOffset || 0;
+      if (now - this.lastJitterAt < 250 && Number.isFinite(this.jitterOffset)) return this.jitterOffset;
+
+      const paddleWidth = this.lastPaddleSpan?.width || 100;
+      const range = Math.max(10, paddleWidth * 0.35);
+      this.jitterOffset = (Math.random() * 2 - 1) * range;
+      this.lastJitterAt = now;
+      return this.jitterOffset;
     },
 
     loop() {
@@ -286,12 +348,20 @@ window.WH = window.WH || {};
       const now = performance.now();
       if (now - this.lastDetectAt > 80) {
         this.lastDetectAt = now;
-        this.lastBallX = this.detectBallX();
+        const ball = this.detectBall();
+        if (ball) {
+          this.lastBallX = ball.x;
+          this.lastBallY = ball.y;
+        }
+        const paddleSpan = this.detectPaddleSpan();
+        if (paddleSpan) this.lastPaddleSpan = paddleSpan;
       }
 
       if (Number.isFinite(this.lastBallX)) {
         const width = this.gameState.canvas?.width || 0;
-        const clampedX = Math.min(width, Math.max(0, this.lastBallX));
+        const jitter = this.getJitterOffset(now, this.lastBallY);
+        const targetX = this.lastBallX + jitter;
+        const clampedX = Math.min(width, Math.max(0, targetX));
         this.movePaddle(clampedX);
         if (this.logCounter % 60 === 0) {
           console.log('[自动打砖块] 追踪小球 X:', Math.round(clampedX));
@@ -327,6 +397,10 @@ window.WH = window.WH || {};
       if (WH.setRunning) WH.setRunning(true);
       this.lastDetectAt = 0;
       this.lastBallX = null;
+      this.lastBallY = null;
+      this.lastPaddleSpan = null;
+      this.jitterOffset = 0;
+      this.lastJitterAt = 0;
       this.initCanvas();
       this.loop();
     },
