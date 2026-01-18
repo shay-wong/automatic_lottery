@@ -33,10 +33,12 @@ window.WH = window.WH || {};
     lastBallY: null,
     prevBallY: null,
     prevBallX: null,
+    prevBallAt: 0,
     lastBallAt: 0,
     lastPaddleSpan: null,
     lastBallSeenAt: 0,
     lastRescueAt: 0,
+    lastBallMovedAt: 0,
     lastBrickDetectAt: 0,
     brickTargetX: null,
     jitterOffset: 0,
@@ -432,11 +434,20 @@ window.WH = window.WH || {};
         this.lastDetectAt = now;
         const ball = this.detectBall();
         if (ball) {
+          this.prevBallX = this.lastBallX;
           this.prevBallY = this.lastBallY;
+          this.prevBallAt = this.lastBallAt;
           this.lastBallX = ball.x;
           this.lastBallY = ball.y;
           this.lastBallAt = now;
           this.lastBallSeenAt = now;
+          if (!Number.isFinite(this.prevBallX) || !Number.isFinite(this.prevBallY)) {
+            this.lastBallMovedAt = now;
+          } else {
+            const dx = Math.abs(this.lastBallX - this.prevBallX);
+            const dy = Math.abs(this.lastBallY - this.prevBallY);
+            if (dx > 0.6 || dy > 0.6) this.lastBallMovedAt = now;
+          }
         } else if (now - this.lastBallSeenAt > 200) {
           this.lastBallX = null;
           this.lastBallY = null;
@@ -451,14 +462,20 @@ window.WH = window.WH || {};
       }
 
       if (Number.isFinite(this.lastBallX) && Number.isFinite(this.lastBallY)) {
+        const canvasHeight = this.gameState.canvas?.height || 0;
+        const bottomZone = canvasHeight ? canvasHeight - 28 : 0;
+        if (this.lastBallY >= bottomZone && now - this.lastBallMovedAt > 900 && now - this.lastRescueAt > 1200) {
+          this.lastRescueAt = now;
+          this.releaseBall();
+        }
         const width = this.gameState.canvas?.width || 0;
         const movingDown = Number.isFinite(this.lastBallY)
           && Number.isFinite(this.prevBallY)
           ? this.lastBallY >= this.prevBallY
           : false;
         let targetBaseX = this.lastBallX;
-        if (movingDown && Number.isFinite(this.lastBallAt) && this.lastBallAt !== now) {
-          const dt = Math.max(1, now - this.lastBallAt);
+        if (movingDown && Number.isFinite(this.prevBallAt) && this.prevBallAt > 0) {
+          const dt = Math.max(1, this.lastBallAt - this.prevBallAt);
           const vx = (this.lastBallX - (this.prevBallX ?? this.lastBallX)) / dt;
           const vy = (this.lastBallY - (this.prevBallY ?? this.lastBallY)) / dt;
           const paddleY = (this.gameState.canvas?.height || 0) - 18;
@@ -475,7 +492,6 @@ window.WH = window.WH || {};
             }
           }
         }
-        this.prevBallX = this.lastBallX;
         const jitter = this.getJitterOffset(now, this.lastBallY, movingDown);
         const biasWeight = movingDown
           ? Math.max(0, Math.min(100, this.config.brickBias || 0)) / 100
@@ -531,9 +547,11 @@ window.WH = window.WH || {};
       this.lastBallY = null;
       this.prevBallY = null;
       this.prevBallX = null;
+      this.prevBallAt = 0;
       this.lastPaddleSpan = null;
       this.lastBallSeenAt = 0;
       this.lastRescueAt = 0;
+      this.lastBallMovedAt = 0;
       this.lastBrickDetectAt = 0;
       this.brickTargetX = null;
       this.jitterOffset = 0;
