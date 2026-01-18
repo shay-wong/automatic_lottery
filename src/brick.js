@@ -32,6 +32,8 @@ window.WH = window.WH || {};
     lastBallX: null,
     lastBallY: null,
     prevBallY: null,
+    prevBallX: null,
+    lastBallAt: 0,
     lastPaddleSpan: null,
     lastBallSeenAt: 0,
     lastRescueAt: 0,
@@ -229,7 +231,7 @@ window.WH = window.WH || {};
 
       const threshold = 240;
       const step = 2;
-      const yLimit = Math.max(0, height - 25);
+      const yLimit = Math.max(0, height - 30);
       const image = ctx.getImageData(0, 0, width, yLimit);
       const data = image.data;
       let sumX = 0;
@@ -237,6 +239,8 @@ window.WH = window.WH || {};
       let count = 0;
       let minX = width;
       let maxX = 0;
+      let minY = yLimit;
+      let maxY = 0;
 
       for (let y = 0; y < yLimit; y += step) {
         for (let x = 0; x < width; x += step) {
@@ -251,12 +255,14 @@ window.WH = window.WH || {};
             count += 1;
             if (x < minX) minX = x;
             if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
           }
         }
       }
 
       if (!count) return null;
-      if ((maxX - minX) > width * 0.5) return null;
+      if ((maxX - minX) > 40 || (maxY - minY) > 40) return null;
       return { x: sumX / count, y: sumY / count };
     },
 
@@ -369,9 +375,18 @@ window.WH = window.WH || {};
       this.pressKey(' ');
     },
 
+    getPaddleHalfWidth() {
+      if (this.lastPaddleSpan) return Math.max(8, (this.lastPaddleSpan.width / 2) - 6);
+      const config = window._brickGameConfig;
+      if (config?.paddle_width_base) {
+        return Math.max(8, (config.paddle_width_base / 2) - 6);
+      }
+      return null;
+    },
+
     clampOffset(offset) {
-      if (!this.lastPaddleSpan) return offset;
-      const safeHalf = Math.max(8, (this.lastPaddleSpan.width / 2) - 6);
+      const safeHalf = this.getPaddleHalfWidth();
+      if (!Number.isFinite(safeHalf)) return offset;
       if (!Number.isFinite(safeHalf) || safeHalf <= 0) return offset;
       return Math.min(safeHalf, Math.max(-safeHalf, offset));
     },
@@ -420,6 +435,7 @@ window.WH = window.WH || {};
           this.prevBallY = this.lastBallY;
           this.lastBallX = ball.x;
           this.lastBallY = ball.y;
+          this.lastBallAt = now;
           this.lastBallSeenAt = now;
         } else if (now - this.lastBallSeenAt > 200) {
           this.lastBallX = null;
@@ -434,21 +450,44 @@ window.WH = window.WH || {};
         if (Number.isFinite(targetX)) this.brickTargetX = targetX;
       }
 
-      if (Number.isFinite(this.lastBallX)) {
+      if (Number.isFinite(this.lastBallX) && Number.isFinite(this.lastBallY)) {
         const width = this.gameState.canvas?.width || 0;
         const movingDown = Number.isFinite(this.lastBallY)
           && Number.isFinite(this.prevBallY)
           ? this.lastBallY >= this.prevBallY
           : false;
+        let targetBaseX = this.lastBallX;
+        if (movingDown && Number.isFinite(this.lastBallAt) && this.lastBallAt !== now) {
+          const dt = Math.max(1, now - this.lastBallAt);
+          const vx = (this.lastBallX - (this.prevBallX ?? this.lastBallX)) / dt;
+          const vy = (this.lastBallY - (this.prevBallY ?? this.lastBallY)) / dt;
+          const paddleY = (this.gameState.canvas?.height || 0) - 18;
+          if (vy > 0) {
+            const timeToPaddle = (paddleY - this.lastBallY) / vy;
+            if (timeToPaddle > 0 && Number.isFinite(timeToPaddle)) {
+              let predicted = this.lastBallX + vx * timeToPaddle;
+              const max = width;
+              while (predicted < 0 || predicted > max) {
+                if (predicted < 0) predicted = -predicted;
+                if (predicted > max) predicted = 2 * max - predicted;
+              }
+              targetBaseX = predicted;
+            }
+          }
+        }
+        this.prevBallX = this.lastBallX;
         const jitter = this.getJitterOffset(now, this.lastBallY, movingDown);
         const biasWeight = movingDown
           ? Math.max(0, Math.min(100, this.config.brickBias || 0)) / 100
           : 0;
         const brickBias = Number.isFinite(this.brickTargetX)
-          ? (this.brickTargetX - this.lastBallX) * biasWeight
+          ? (this.brickTargetX - targetBaseX) * biasWeight
           : 0;
-        const offset = this.clampOffset(jitter + brickBias);
-        const targetX = this.lastBallX + offset;
+        const timeScale = movingDown && Number.isFinite(this.lastBallY)
+          ? Math.min(1, Math.max(0.2, (this.gameState.canvas.height - this.lastBallY) / 180))
+          : 0;
+        const offset = this.clampOffset((jitter + brickBias) * timeScale);
+        const targetX = targetBaseX + offset;
         const clampedX = Math.min(width, Math.max(0, targetX));
         this.movePaddle(clampedX);
         if (this.logCounter % 60 === 0) {
@@ -491,6 +530,7 @@ window.WH = window.WH || {};
       this.lastBallX = null;
       this.lastBallY = null;
       this.prevBallY = null;
+      this.prevBallX = null;
       this.lastPaddleSpan = null;
       this.lastBallSeenAt = 0;
       this.lastRescueAt = 0;

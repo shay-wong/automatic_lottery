@@ -60,6 +60,27 @@
         console.warn('[自动农场] 解析 farm_state 响应失败:', e);
       }
     }
+
+    // 捕获砖块游戏启动配置
+    if (url.includes('brick_game_start')) {
+      try {
+        const cloned = response.clone();
+        const json = await cloned.json();
+        const data = json.data || {};
+        if (data.config) {
+          window._brickGameConfig = data.config;
+          window._brickGameSession = {
+            sessionId: data.session_id,
+            runId: data.run_id,
+            finishToken: data.finish_token,
+            finishTokenExpiresAt: data.finish_token_expires_at
+          };
+          console.log('[自动打砖块] 捕获到游戏配置:', window._brickGameConfig);
+        }
+      } catch (e) {
+        console.warn('[自动打砖块] 解析 brick_game_start 响应失败:', e);
+      }
+    }
     return response;
   };
 })();
