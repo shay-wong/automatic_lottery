@@ -99,7 +99,7 @@
     const num = parseFloat(value);
     if (!Number.isFinite(num)) return fallback;
     const ms = unit === 's' ? num * 1000 : num;
-    return Math.max(1, Math.round(ms));
+    return Math.max(0, Math.round(ms));
   }
 
   function autoSizeSelect(select) {
@@ -469,7 +469,7 @@
             <div class="acd-input-row">
               <label>抽卡间隔</label>
               <div class="acd-input-inline">
-                <input type="number" id="inp-interval" value="${intervalParts.value}" min="1" step="any">
+                <input type="number" id="inp-interval" value="${intervalParts.value}" min="0" step="any">
                 <select id="sel-interval-unit">
                   <option value="s" ${intervalParts.unit === 's' ? 'selected' : ''}>秒</option>
                   <option value="ms" ${intervalParts.unit === 'ms' ? 'selected' : ''}>毫秒</option>
@@ -480,7 +480,7 @@
             <div class="acd-input-row">
               <label>确认弹窗间隔</label>
               <div class="acd-input-inline">
-                <input type="number" id="inp-confirm-interval" value="${confirmIntervalParts.value}" min="1" step="any">
+                <input type="number" id="inp-confirm-interval" value="${confirmIntervalParts.value}" min="0" step="any">
                 <select id="sel-confirm-interval-unit">
                   <option value="s" ${confirmIntervalParts.unit === 's' ? 'selected' : ''}>秒</option>
                   <option value="ms" ${confirmIntervalParts.unit === 'ms' ? 'selected' : ''}>毫秒</option>
@@ -491,7 +491,7 @@
             <div class="acd-input-row">
               <label>结果页关闭间隔</label>
               <div class="acd-input-inline">
-                <input type="number" id="inp-close-interval" value="${closeIntervalParts.value}" min="1" step="any">
+                <input type="number" id="inp-close-interval" value="${closeIntervalParts.value}" min="0" step="any">
                 <select id="sel-close-interval-unit">
                   <option value="s" ${closeIntervalParts.unit === 's' ? 'selected' : ''}>秒</option>
                   <option value="ms" ${closeIntervalParts.unit === 'ms' ? 'selected' : ''}>毫秒</option>
