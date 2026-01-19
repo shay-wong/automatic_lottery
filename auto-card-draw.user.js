@@ -332,6 +332,7 @@
       if (canAct(now, confirmAnchorAt, confirmInterval)) {
         confirmBtn.click();
         lastConfirmAt = now;
+        lastCloseAt = now;
         updateStatus('确认弹窗...');
       } else {
         updateStatus('等待确认弹窗');
