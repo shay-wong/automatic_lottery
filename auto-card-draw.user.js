@@ -57,6 +57,9 @@
   let lastCloseAt = 0;
   let lastConfirmAt = 0;
   let lastDrawAt = 0;
+  let lastResultCloseAt = 0;
+  let lastConfirmPromptAt = 0;
+  let lastResultVisibleAt = 0;
 
   function saveConfig() {
     localStorage.setItem('acd_config', JSON.stringify(CONFIG));
@@ -126,6 +129,7 @@
     return Math.min(
       1000,
       CONFIG.closeInterval,
+      CONFIG.confirmInterval,
       getDrawInterval()
     );
   }
@@ -134,6 +138,9 @@
     lastCloseAt = 0;
     lastConfirmAt = 0;
     lastDrawAt = 0;
+    lastResultCloseAt = 0;
+    lastConfirmPromptAt = 0;
+    lastResultVisibleAt = 0;
   }
 
   function canAct(now, lastAt, interval) {
@@ -301,8 +308,7 @@
   function draw() {
     if (!isRunning) return;
     const now = Date.now();
-    const pendingClose = lastConfirmAt > lastCloseAt;
-    const pendingConfirm = lastDrawAt > lastConfirmAt;
+    const inFlight = lastDrawAt > lastResultCloseAt;
 
     // 检查付费上限
     const paidUsed = getPaidUsed();
@@ -313,13 +319,17 @@
     }
 
     // 0. 抽卡结果页
-    if (isResultVisible()) {
-      const resultConfirmBtn = [...document.querySelectorAll('button')].find(
-        (b) => /确认|确定|继续|关闭|收下/.test(b.textContent) && b.offsetParent && !b.disabled
-      );
-      if (resultConfirmBtn && canAct(now, lastCloseAt, CONFIG.closeInterval)) {
+    const resultConfirmBtn = [...document.querySelectorAll('button')].find(
+      (b) => /确认|确定|继续|关闭|收下/.test(b.textContent) && b.offsetParent && !b.disabled
+    );
+    if (isResultVisible() && (inFlight || resultConfirmBtn)) {
+      if (!lastResultVisibleAt) lastResultVisibleAt = now;
+      if (resultConfirmBtn && canAct(now, lastResultVisibleAt, CONFIG.closeInterval)) {
         resultConfirmBtn.click();
         lastCloseAt = now;
+        lastResultCloseAt = now;
+        lastConfirmPromptAt = 0;
+        lastResultVisibleAt = 0;
         if (lastConfirmAt < lastDrawAt) lastConfirmAt = lastDrawAt;
         updateStatus('关闭结果...');
       } else {
@@ -330,40 +340,41 @@
 
     // 1. 关闭弹窗
     const closeBtn = document.querySelector('button[aria-label="Close"]') ||
-      [...document.querySelectorAll('button')].find(b => /关闭|确定|知道了|收下/.test(b.textContent) && b.offsetParent);
+      [...document.querySelectorAll('button')].find(b => /关闭|知道了|收下/.test(b.textContent) && b.offsetParent);
     if (closeBtn?.offsetParent) {
       if (canAct(now, lastCloseAt, CONFIG.closeInterval)) {
         closeBtn.click();
         lastCloseAt = now;
-        if (lastConfirmAt < lastDrawAt) lastConfirmAt = lastDrawAt;
+        if (inFlight) {
+          lastResultCloseAt = now;
+          lastConfirmPromptAt = 0;
+          lastResultVisibleAt = 0;
+          if (lastConfirmAt < lastDrawAt) lastConfirmAt = lastDrawAt;
+        }
         updateStatus('关闭结果...');
       } else {
         updateStatus('等待关闭结果');
       }
       return;
     }
-    if (pendingClose) {
-      updateStatus('等待关闭结果');
-      return;
-    }
 
     // 2. 确认弹窗
     const confirmBtn = [...document.querySelectorAll('button')].find(b => /确认|确定|继续/.test(b.textContent) && b.offsetParent && !b.disabled);
     if (confirmBtn) {
-      const confirmInterval = CONFIG.interval;
-      const confirmAnchorAt = pendingConfirm ? lastDrawAt : lastConfirmAt;
-      if (canAct(now, confirmAnchorAt, confirmInterval)) {
+      if (!lastConfirmPromptAt) lastConfirmPromptAt = now;
+      const confirmInterval = CONFIG.confirmInterval;
+      if (canAct(now, lastConfirmPromptAt, confirmInterval)) {
         confirmBtn.click();
         lastConfirmAt = now;
-        lastCloseAt = now;
+        lastConfirmPromptAt = 0;
         updateStatus('确认弹窗...');
       } else {
         updateStatus('等待确认弹窗');
       }
       return;
     }
-    if (pendingConfirm) {
-      updateStatus('等待确认弹窗');
+    if (inFlight) {
+      updateStatus('等待抽卡结果');
       return;
     }
 
@@ -371,9 +382,11 @@
     const btn = [...document.querySelectorAll('button')].find(b => b.textContent.includes(CONFIG.mode) && !b.disabled && b.offsetParent);
     if (btn) {
       const drawInterval = getDrawInterval();
-      if (canAct(now, lastDrawAt, drawInterval)) {
+      if (!lastResultCloseAt || canAct(now, lastResultCloseAt, drawInterval)) {
         btn.click();
         lastDrawAt = now;
+        lastConfirmPromptAt = 0;
+        lastResultVisibleAt = 0;
         updateStatus('抽卡中...');
       } else {
         updateStatus('等待抽卡');
@@ -422,7 +435,8 @@
     document.getElementById('acd-config').innerHTML = `
       <div class="acd-row"><span class="acd-label">抽卡模式</span><span class="acd-val">${CONFIG.mode}</span></div>
       <div class="acd-row"><span class="acd-label">抽卡间隔</span><span class="acd-val">${formatDuration(CONFIG.interval, CONFIG.intervalUnit)}</span></div>
-      <div class="acd-row"><span class="acd-label">关闭间隔</span><span class="acd-val">${formatDuration(CONFIG.closeInterval, CONFIG.closeIntervalUnit)}</span></div>
+      <div class="acd-row"><span class="acd-label">确认弹窗间隔</span><span class="acd-val">${formatDuration(CONFIG.confirmInterval, CONFIG.confirmIntervalUnit)}</span></div>
+      <div class="acd-row"><span class="acd-label">结果页关闭间隔</span><span class="acd-val">${formatDuration(CONFIG.closeInterval, CONFIG.closeIntervalUnit)}</span></div>
       <div class="acd-row"><span class="acd-label">付费上限</span><span class="acd-val">${CONFIG.paidLimit}次</span></div>
       <div class="acd-row"><span class="acd-label">超时时间</span><span class="acd-val">${formatDuration(CONFIG.timeout, CONFIG.timeoutUnit)}</span></div>
     `;
@@ -433,6 +447,7 @@
     if (existing) existing.remove();
 
     const intervalParts = getDurationParts(CONFIG.interval, CONFIG.intervalUnit);
+    const confirmIntervalParts = getDurationParts(CONFIG.confirmInterval, CONFIG.confirmIntervalUnit);
     const closeIntervalParts = getDurationParts(CONFIG.closeInterval, CONFIG.closeIntervalUnit);
     const timeoutParts = getDurationParts(CONFIG.timeout, CONFIG.timeoutUnit);
     const modal = document.createElement('div');
@@ -463,7 +478,18 @@
             </div>
             <div class="acd-divider"></div>
             <div class="acd-input-row">
-              <label>关闭间隔</label>
+              <label>确认弹窗间隔</label>
+              <div class="acd-input-inline">
+                <input type="number" id="inp-confirm-interval" value="${confirmIntervalParts.value}" min="1" step="any">
+                <select id="sel-confirm-interval-unit">
+                  <option value="s" ${confirmIntervalParts.unit === 's' ? 'selected' : ''}>秒</option>
+                  <option value="ms" ${confirmIntervalParts.unit === 'ms' ? 'selected' : ''}>毫秒</option>
+                </select>
+              </div>
+            </div>
+            <div class="acd-divider"></div>
+            <div class="acd-input-row">
+              <label>结果页关闭间隔</label>
               <div class="acd-input-inline">
                 <input type="number" id="inp-close-interval" value="${closeIntervalParts.value}" min="1" step="any">
                 <select id="sel-close-interval-unit">
@@ -502,12 +528,15 @@
     modal.querySelector('.acd-backdrop').onclick = () => modal.remove();
     const intervalInput = document.getElementById('inp-interval');
     const intervalUnitSelect = document.getElementById('sel-interval-unit');
+    const confirmIntervalInput = document.getElementById('inp-confirm-interval');
+    const confirmIntervalUnitSelect = document.getElementById('sel-confirm-interval-unit');
     const closeIntervalInput = document.getElementById('inp-close-interval');
     const closeIntervalUnitSelect = document.getElementById('sel-close-interval-unit');
     const timeoutInput = document.getElementById('inp-timeout');
     const timeoutUnitSelect = document.getElementById('sel-timeout-unit');
     const durationControls = [
       { input: intervalInput, select: intervalUnitSelect },
+      { input: confirmIntervalInput, select: confirmIntervalUnitSelect },
       { input: closeIntervalInput, select: closeIntervalUnitSelect },
       { input: timeoutInput, select: timeoutUnitSelect },
     ];
@@ -538,6 +567,12 @@
         document.getElementById('inp-interval').value,
         CONFIG.intervalUnit,
         CONFIG.interval
+      );
+      CONFIG.confirmIntervalUnit = document.getElementById('sel-confirm-interval-unit').value;
+      CONFIG.confirmInterval = toMilliseconds(
+        document.getElementById('inp-confirm-interval').value,
+        CONFIG.confirmIntervalUnit,
+        CONFIG.confirmInterval
       );
       CONFIG.closeIntervalUnit = document.getElementById('sel-close-interval-unit').value;
       CONFIG.closeInterval = toMilliseconds(
