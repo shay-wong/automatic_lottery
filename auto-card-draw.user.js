@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         自动抽卡
-// @version      1.5.2
+// @version      1.5.3
 // @description  自动抽卡脚本
 // @license      MIT; 参考 https://greasyfork.org/scripts/561215
 // @match        https://cdk.hybgzs.com/entertainment/cards/draw
