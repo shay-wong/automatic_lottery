@@ -154,6 +154,13 @@
     return 0;
   }
 
+  function isResultVisible() {
+    const title = [...document.querySelectorAll('h1, h2, h3, div, span')].find(
+      (el) => /抽卡结果/.test(el.textContent) && el.offsetParent
+    );
+    return Boolean(title);
+  }
+
   // Toast 通知
   function showToast(msg, type = 'info') {
     const toast = document.createElement('div');
@@ -302,6 +309,22 @@
     if (paidUsed >= CONFIG.paidLimit) {
       stop(`达到付费上限 (${paidUsed})`);
       showToast(`已达到付费上限 ${paidUsed} 次`, 'warn');
+      return;
+    }
+
+    // 0. 抽卡结果页
+    if (isResultVisible()) {
+      const resultConfirmBtn = [...document.querySelectorAll('button')].find(
+        (b) => /确认|确定|继续|关闭|收下/.test(b.textContent) && b.offsetParent && !b.disabled
+      );
+      if (resultConfirmBtn && canAct(now, lastCloseAt, CONFIG.closeInterval)) {
+        resultConfirmBtn.click();
+        lastCloseAt = now;
+        if (lastConfirmAt < lastDrawAt) lastConfirmAt = lastDrawAt;
+        updateStatus('关闭结果...');
+      } else {
+        updateStatus('等待关闭结果');
+      }
       return;
     }
 
